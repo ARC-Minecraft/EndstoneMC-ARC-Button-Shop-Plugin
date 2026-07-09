@@ -1,6 +1,6 @@
 # 弧光按钮商店插件 (ARC Button Shop Plugin)
 
-[![版本](https://img.shields.io/badge/版本-0.2.2-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
+[![版本](https://img.shields.io/badge/版本-0.3.0-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
 [![EndStone](https://img.shields.io/badge/EndStone-0.10+-green.svg)](https://github.com/EndstoneMC/endstone)
 [![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)](https://www.python.org/)
 
@@ -23,6 +23,15 @@
 - **管理全部商店**: OP 在主面板可使用「管理全部商店（OP）」查看并管理服务器内所有玩家的商店
 - **转换为无限商店**: OP 在任意商店的管理面板中可将该商店「转换为无限商店（系统商店）」，一键变为无限库存/预算的官方商店
 - **系统商店标识**: 无限商店在列表和详情中显示「无限」库存/预算及 §e[系统] 标识
+
+### 📈 官方定价与动态价格波动（v0.3.0）
+- **官方定价商店**: OP 可创建「官方定价出售/收购」商店，物品与基准价来自 `official_prices.yml`，无需从背包选物
+- **需求驱动调价**: 根据累计交易额自动调整价格——玩家购买越多出售价越高，系统收购越多回收价越低
+- **出售-回收联动**: 出售价上涨时，回收价可按配置比例同步上涨，避免套利空间失控
+- **每日随机波动**: 每天随机选取若干物品，在配置范围内产生 ±% 的日波动，增加市场变化感
+- **价格自动回归**: 价格偏离基准后按小时缓慢回归，长期保持经济稳定
+- **商店级折扣**: 官方定价商店支持设置折扣/加价百分比，在动态价格基础上叠加
+- **安全防护**: 当回收价高于或等于出售价时自动禁用回收，防止刷钱漏洞
 
 ### ⚡ 性能优化
 - **区块化存储**: 智能区块索引，快速查找附近商店
@@ -58,12 +67,12 @@
 | 指令 | 权限要求 | 语法 | 功能描述 |
 |------|----------|------|----------|
 | `/shop` | 所有玩家 | `/shop` | 打开商店主面板，管理和浏览商店 |
-| `/shopmanage` | OP | `/shopmanage <list\|clear\|reload>` | 管理员商店管理指令 |
+| `/shopmanage` | OP | `/shopmanage <list\|clear\|reload\|prices\|pricereload\|pricereset>` | 管理员商店与定价管理指令 |
 
 ### 🏪 创建商店流程
 
 1. **打开界面**: 使用 `/shop` 命令打开商店主面板
-2. **选择类型**: 点击「创建商店」，选择「出售商店」或「收购商店」；**OP 额外可选**「无限出售（系统商店）」或「无限收购（系统商店）」
+2. **选择类型**: 点击「创建商店」，选择「出售商店」或「收购商店」；**OP 额外可选**「无限出售（系统商店）」「无限收购（系统商店）」或「官方定价出售/收购」
 3. **选择物品**: 从背包中选择要出售/收购的物品（无限商店仅用于定义物品类型与单价，不消耗物品或预算）
 4. **设置价格**: 输入单价；普通收购商店还需输入预算
 5. **放置按钮**: 在想要创建商店的位置放置一个按钮
@@ -88,6 +97,7 @@
 #### OP 管理功能
 - **管理全部商店**: OP 在主面板点击「管理全部商店（OP）」可列出服务器内所有活跃商店，点击任意商店进行管理
 - **转换为无限商店**: 在商店管理面板中，OP 可将该商店「转换为无限商店（系统商店）」，变为无限库存/预算的官方商店
+- **官方定价管理**: 使用 `/shopmanage prices` 查看基准价与波动状态；`/shopmanage pricereload` 重载定价文件；`/shopmanage pricereset` 重置所有动态调整
 - **删除他人商店**: OP 从「管理全部商店」删除他人商店时，剩余库存/预算及收集物品会返还给**店主**（店主在线则发放物品）
 
 #### 商店保护机制
@@ -264,11 +274,56 @@ SHOP_SALE_NOTIFICATION=§a你的商店有新交易！§f{0} 购买了 {1} 个 {2
 
 ### 配置参数
 
+插件配置文件位于 `plugins/ARCButtonShop/`：
+
+#### `core_setting.yml` — 全局设置（`key=value` 格式）
+
+除交易税、商店数量限制外，动态定价相关配置也由此文件管理：
+
+```ini
+# 交易税
+trade_tax_enabled=true
+trade_tax_rate=0.05
+max_shops_per_player=50
+
+# 动态定价总开关
+dynamic_pricing_enabled=true
+
+# 需求驱动调价
+dynamic_pricing_sell_amount_per_percent=10000   # 每累计出售交易额达此金额，出售价涨 1%
+dynamic_pricing_buy_amount_per_percent=10000    # 每累计收购交易额达此金额，回收价降 1%
+dynamic_pricing_max_sell_increase=0.50          # 出售价最大涨幅（50%）
+dynamic_pricing_max_buy_decrease=0.30           # 回收价最大降幅（30%）
+dynamic_pricing_sell_buy_link_ratio=0.5         # 出售涨价时回收价联动比例（0=关闭，1=完全同步）
+dynamic_pricing_recovery_rate_per_hour=0.0002   # 每小时向基准价回归速率（约两天恢复 1%）
+
+# 每日随机波动
+daily_fluctuation_enabled=true
+daily_fluctuation_item_count=3                  # 每日随机波动的物品种类数
+daily_fluctuation_min_percent=-15               # 波动下限（%）
+daily_fluctuation_max_percent=15                # 波动上限（%）
+daily_fluctuation_reset_hour=0                  # 每日重置时间（24 小时制，0=午夜）
+```
+
+#### `official_prices.yml` — 官方基准定价
+
+定义各物品的基准出售价与回收价（仅价格数据，不含动态定价开关）：
+
+```yaml
+prices:
+  minecraft:diamond:
+    sell: 1000    # 玩家购买单价（基准）
+    buy: 500      # 玩家出售给商店单价（基准）
+  minecraft:iron_ingot:
+    sell: 50
+    buy: 25
+```
+
+最终成交价 = 基准价 × (1 + 需求调整 + 日波动) × (1 + 商店折扣%)。
+
 ```python
-# 插件内置配置参数
+# 插件内置参数
 CHUNK_SIZE = 16              # 区块大小（标准 Minecraft 区块）
-MAX_SHOPS_PER_PLAYER = 50    # 每个玩家最大商店数量（计划功能）
-TRANSACTION_LOG_DAYS = 30    # 交易记录保留天数（计划功能）
 ```
 
 ### 🎒 背包操作集成
@@ -334,7 +389,18 @@ item_stack.item_meta # 物品元数据
 
 ## 📝 更新日志
 
-### v0.2.2 (当前版本)
+### v0.3.0 (当前版本)
+
+#### 官方定价与动态价格波动
+- 📈 **官方定价商店**：OP 可创建官方定价出售/收购商店，基准价由 `official_prices.yml` 统一管理
+- 📊 **需求驱动调价**：根据累计交易额自动涨跌价，支持涨幅/降幅上限与出售-回收联动
+- 🎲 **每日随机波动**：每天随机选取物品产生 ±% 波动，可配置种类数、范围与重置时间
+- ⏳ **价格自动回归**：每小时向基准价缓慢回归，防止价格长期偏离
+- ⚙️ **配置分离**：动态定价开关与参数迁移至 `core_setting.yml`，`official_prices.yml` 仅保留基准价
+- 🛡️ **回收保护**：回收价高于出售价时自动禁用回收，防止套利
+- 🔧 **管理命令**：新增 `/shopmanage prices`、`pricereload`、`pricereset` 子命令
+
+### v0.2.2
 
 #### 最近修复更新
 - 🩹 **购买与背包满时的经济漏洞修复**：出售商店购买改为**先尝试发放物品，再按实际成功发放的数量**扣款、计税、扣库存并记账。修复此前在背包空间不足、物品只能部分进包时，错误触发全额退款路径，导致**少扣或不扣买家钱**的问题；若实际发放少于输入数量，会提示本次仅成功购买的数量。
