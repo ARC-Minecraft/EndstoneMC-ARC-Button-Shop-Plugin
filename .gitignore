@@ -160,3 +160,7 @@ cython_debug/
 
 # Wheels
 wheelhouse/
+
+# IDE / Local config
+.cursor/
+.joycode/

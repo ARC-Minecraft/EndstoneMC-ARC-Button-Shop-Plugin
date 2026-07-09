@@ -6,23 +6,29 @@ SHOP_MY_SHOPS_BUTTON=§e我的商店
 SHOP_NEARBY_BUTTON=§b附近商店
 SHOP_CLOSE_BUTTON=§c关闭
 SHOP_PANEL_ERROR=§c商店面板操作出现错误！
-
+SHOP_MANAGE_ALL_SHOPS_BUTTON=§d管理全部商店（OP）
 # 商店类型选择
 SHOP_TYPE_SELECT_TITLE=§6选择商店类型
 SHOP_TYPE_SELECT_CONTENT=§f请选择你要创建的商店类型：
 SHOP_TYPE_SELL_BUTTON=§a出售商店(出售物品给其他玩家)
 SHOP_TYPE_BUY_BUTTON=§b收购商店(收购其他玩家的物品)
-
+SHOP_TYPE_SELL_INFINITE_BUTTON=§e无限出售（系统商店）
+SHOP_TYPE_BUY_INFINITE_BUTTON=§e无限收购（系统商店）
 SHOP_ITEM_SELECT_TITLE=§e选择要出售的物品
 SHOP_ITEM_SELECT_CONTENT=§f请从背包中选择一个物品来创建商店：
 SHOP_NO_ITEMS=§c背包中没有可出售的物品！
 SHOP_BACK_BUTTON=§e返回
-
 SHOP_PRICE_PANEL_TITLE=§e设置商品价格
-SHOP_PRICE_ITEM_INFO=§f要出售的物品: §a{0} §fx§a{1}
+SHOP_PRICE_SELL_ITEM_INFO=§f物品: {0}\n§f数量: {1}
+SHOP_PRICE_BUY_ITEM_INFO=§f收购物品: {0}
 SHOP_PRICE_INPUT_LABEL=§e单价设置
 SHOP_PRICE_INPUT_PLACEHOLDER=输入每个物品的价格，例如：10
-
+SHOP_PRICE_SELL_LABEL=单价（玩家购买时每件）
+SHOP_PRICE_BUY_LABEL=单价（玩家出售时每件）
+SHOP_INFINITE_SELL_TAG=§e[系统商店·无限库存]
+SHOP_INFINITE_BUY_TAG=§e[系统商店·无限预算]
+SHOP_INFINITE_SETUP_HINT=§e此为系统商店（无限库存/预算）
+SHOP_INFINITE_TITLE_PREFIX=系统商店 - 
 # 收购商店相关
 SHOP_BUY_PRICE_PANEL_TITLE=§b设置收购价格
 SHOP_BUY_ITEM_INFO=§f要收购的物品: §a{0}
@@ -30,74 +36,188 @@ SHOP_BUY_PRICE_INPUT_LABEL=§b收购单价
 SHOP_BUY_PRICE_INPUT_PLACEHOLDER=输入每个物品的收购价格，例如：8
 SHOP_BUY_BUDGET_LABEL=§6预算设置
 SHOP_BUY_BUDGET_PLACEHOLDER=输入总预算，例如：1000
-
 SHOP_SETUP_TITLE=§a准备创建商店
-SHOP_SETUP_INSTRUCTION=§f商店设置完成！\n§a物品: §f{0} x{1}\n§a单价: §f{2}\n\n§e现在请右键点击一个按钮来创建商店！
+SHOP_SETUP_INSTRUCTION=§f商店设置完成！\n§a物品: §f{0}\n§a单价: §f{2}\n\n§e现在请右键点击一个按钮来创建商店！
 SHOP_BUY_SETUP_INSTRUCTION=§f收购商店设置完成！\n§b物品: §f{0}\n§b收购价: §f{1}\n§6预算: §f{2} §7(可收购{3}个)\n\n§e现在请右键点击一个按钮来创建收购商店！
-
 SHOP_INVALID_PRICE=§c无效的价格！请输入大于0的数字
 SHOP_INVALID_BUDGET=§c无效的预算！预算必须大于0且不少于单价
 SHOP_INSUFFICIENT_FUNDS_FOR_BUDGET=§c资金不足！预算需要{0}，你只有{1}
 SHOP_RESULT_TITLE=§6操作结果
-
 SHOP_ALREADY_EXISTS=§c该位置已经有商店了！
 SHOP_ITEM_NOT_FOUND=§c在你的背包中找不到该物品！
 SHOP_CREATED_SUCCESS=§a商店创建成功！§f出售 {0} x{1}，单价 {2}
 SHOP_BUY_CREATED_SUCCESS=§b收购商店创建成功！§f收购 {0}，单价 {1}，预算 {2}，可收购 {3} 个
+SHOP_INFINITE_CREATED_SUCCESS=§a系统商店创建成功！{0} - 单价:{1}（无限库存/预算）
 SHOP_CREATE_FAILED=§c商店创建失败！
 SHOP_ITEM_REMOVE_FAILED=§c从背包移除物品失败！
 SHOP_BUDGET_DEDUCT_FAILED=§c预算资金扣除失败！
-
+# 商店详情面板
 SHOP_DETAIL_TITLE=§6商店详情
-SHOP_DETAIL_INFO=§f店主: §a{0}\n§f商品: §e{1}\n§f库存: §c{2}\n§f单价: §6{3}
+SHOP_DETAIL_OWNER=§f店主: {0}
+SHOP_DETAIL_TYPE=§f类型: {0}
+SHOP_DETAIL_ITEM=§f物品: {0}
+SHOP_DETAIL_STOCK=§f库存: {0}
+SHOP_DETAIL_BUDGET=§f预算: {0}
+SHOP_DETAIL_PRICE=§f单价: {0}
+SHOP_DETAIL_INFINITE_STOCK=§e无限
+SHOP_DETAIL_INFINITE_BUDGET=§e无限
 SHOP_BUY_BUTTON=§a购买
 SHOP_MANAGE_BUTTON=§e管理商店
-
+SHOP_SELL_BUTTON=§a出售
+SHOP_SELL_TITLE=§a出售物品
+SHOP_SELL_QUANTITY_LABEL=§e出售数量
+SHOP_SELL_QUANTITY_PLACEHOLDER=输入出售数量（最大{0}）
+# 购买面板
 SHOP_PURCHASE_TITLE=§a购买商品
-SHOP_PURCHASE_INFO=§f商品: §e{0}\n§f库存: §c{1}\n§f单价: §6{2}
+SHOP_PURCHASE_SELL_INFO=§f物品: {0}\n§f库存: {1}\n§f单价: {2}
+SHOP_PURCHASE_BUY_INFO=§f收购物品: {0}\n§f预算: {1}\n§f收购价: {2}
 SHOP_QUANTITY_LABEL=§e购买数量
 SHOP_QUANTITY_PLACEHOLDER=输入购买数量（最大{0}）
-
 SHOP_INVALID_QUANTITY=§c无效的数量！请检查输入和库存
+SHOP_NOT_ENOUGH_ITEMS=§c背包中没有足够的物品
 SHOP_CORE_PLUGIN_NOT_FOUND=§c未找到经济核心插件！
 SHOP_INSUFFICIENT_FUNDS=§c资金不足！需要 {0}，你只有 {1}
 SHOP_INSUFFICIENT_STOCK=§c库存不足！
+SHOP_INSUFFICIENT_BUDGET=§c商店预算不足！
 SHOP_PAYMENT_FAILED=§c支付失败！
 SHOP_OWNER_PAYMENT_FAILED=§c给店主付款失败！
 SHOP_PURCHASE_SUCCESS=§a购买成功！获得 {0} 个 {1}，花费 {2}
 SHOP_PURCHASE_SUCCESS_WITH_TAX=§a购买成功！获得 {0} 个 {1}，花费 {2} §7(含税 {3})
 SHOP_SELL_SUCCESS=§a出售成功！获得 {2} 金币，出售了 {0} 个 {1}
 SHOP_SELL_SUCCESS_WITH_TAX=§a出售成功！获得 {2} 金币，出售了 {0} 个 {1} §7(税费 {3})
-
-# 新增按钮和标签
-SHOP_SELL_BUTTON=§a出售
-SHOP_SELL_TITLE=§a出售物品
-SHOP_SELL_QUANTITY_LABEL=§e出售数量
-SHOP_SELL_QUANTITY_PLACEHOLDER=输入出售数量（最大{0}）
-
-# 税收提示
 SHOP_TAX_INFO=§7交易税: {0}% (税费: {1})
+SHOP_TAX_RATE_DISPLAY=§7交易税: {0}%
+SHOP_PARTIAL_PURCHASE_NOTICE=§e注意：背包空间不足，本次仅成功购买 {0}/{1} 个，其余未购买。
 SHOP_ITEM_GIVE_FAILED=§c给予物品失败！
 SHOP_PURCHASE_ERROR=§c购买时出现错误！
-
-# 新的错误消息
 SHOP_NOT_AVAILABLE=§c商店暂时不可用！
-SHOP_INSUFFICIENT_BUDGET=§c商店预算不足！
 SHOP_PLAYER_NO_ITEMS=§c你没有足够的物品！
-
+SHOP_INVENTORY_FULL=§c背包已满，无法完成交易！
+SHOP_ITEM_STACK_ERROR=§c物品堆栈处理出现错误！
 # 通知消息
 SHOP_SALE_NOTIFICATION=§a你的商店有新交易！§f{0} 购买了 {1} 个 {2}，收入 {3}
 SHOP_BUY_NOTIFICATION=§b你的收购商店收到物品！§f{0} 出售了 {1} 个 {2}，支出 {3}
-
-# 背包相关错误消息
-SHOP_INVENTORY_FULL=§c背包已满，无法完成交易！
-SHOP_ITEM_STACK_ERROR=§c物品堆栈处理出现错误！
-
-# 商店保护相关消息
+# 商店保护
 SHOP_BREAK_PROTECTED=§c这个按钮是 §a{0} §c的商店，你不能破坏它！
 SHOP_REMOVED_BY_OWNER_SELL=§a商店已删除！§f剩余库存 {0} 个 {1} 已返还到背包
 SHOP_REMOVED_BY_OWNER_BUY=§a收购商店已删除！§f剩余预算 {0} 金币已返还到账户
 SHOP_REMOVAL_ERROR=§c删除商店时出现错误！
-
-# 交互提示消息
+# 交互提示
 SHOP_NOT_BUTTON=§c你正在交互的是 §e{0} §c，请使用按钮来创建商店！
+# 权限
+PLAYER_ONLY_COMMAND=§c该命令只能由玩家执行！
+NO_PERMISSION=§c你没有权限执行此操作！
+# 辅助方法 - 店主显示
+SHOP_OWNER_SYSTEM=系统（官方商店）
+# 辅助方法 - 商店类型管理行
+SHOP_TYPE_MANAGE_SELL=§a出售商店§r：其他玩家在此「购买」物品（扣买家钱，货款给店主）
+SHOP_TYPE_MANAGE_SELL_INFINITE=§e系统·无限出售§r：其他玩家在此「购买」物品（扣买家钱，由系统发货，与创建者资金无关）
+SHOP_TYPE_MANAGE_BUY=§b收购/回收商店§r：其他玩家在此「出售」物品换钱（收走物品，从商店预算中支付）
+SHOP_TYPE_MANAGE_BUY_INFINITE=§e系统·无限收购/回收§r：其他玩家在此「出售」物品换钱（收走物品，系统付钱，与创建者资金无关）
+# 辅助方法 - 短标签
+SHOP_TYPE_TAG_SELL=§a[出售]§r
+SHOP_TYPE_TAG_SELL_INFINITE=§e[系统·出售]§r
+SHOP_TYPE_TAG_BUY=§b[收购]§r
+SHOP_TYPE_TAG_BUY_INFINITE=§e[系统·收购]§r
+# 辅助方法 - 纯文本标题
+SHOP_TYPE_PLAIN_SELL={0}出售商店 — 其他玩家在此「购买」物品（向商店付钱）
+SHOP_TYPE_PLAIN_BUY={0}收购/回收商店 — 其他玩家在此「出售」物品换钱（把物品卖给商店）
+SHOP_TYPE_PLAIN_SYSTEM_TAG=【系统·无限】
+# 辅助方法 - 管理标题后缀
+SHOP_MANAGE_TITLE_SELL=（出售）
+SHOP_MANAGE_TITLE_SELL_INFINITE=（系统·出售）
+SHOP_MANAGE_TITLE_BUY=（收购/回收）
+SHOP_MANAGE_TITLE_BUY_INFINITE=（系统·收购）
+# 管理命令
+SHOP_MANAGE_USAGE=§c用法: /shopmanage <list|clear|reload>
+SHOP_MANAGE_ACTIVE_COUNT=§f当前活跃商店数量: {0}
+SHOP_MANAGE_CLEAR_SUCCESS=§a所有商店数据已清除
+SHOP_MANAGE_RELOAD_SUCCESS=§a商店系统已重新加载
+# 全部商店面板（OP）
+SHOP_ALL_SHOPS_TITLE=管理全部商店（OP）
+SHOP_NO_ACTIVE_SHOPS=服务器内暂无活跃商店
+SHOP_ALL_SHOPS_CONTENT=共 {0} 个活跃商店。\n绿色[出售]=玩家在此买货；蓝色[收购]=玩家卖货换钱；黄色[系统]=官方无限商店。\n点击条目进入管理。
+SHOP_ALL_SHOPS_PANEL_ERROR=§c显示商店列表时出现错误
+# 我的商店面板
+SHOP_MY_SHOPS_TITLE=我的商店
+SHOP_NO_MY_SHOPS=你还没有创建任何商店
+SHOP_MY_SHOPS_CONTENT=你有 {0} 个商店。\n绿色[出售]=玩家来买货；蓝色[收购]=玩家卖货换钱；黄色[系统]=官方无限商店。
+# 附近商店面板
+SHOP_NEARBY_SHOPS_TITLE=附近商店
+SHOP_NO_NEARBY_SHOPS=附近没有商店
+SHOP_NEARBY_SHOPS_CONTENT=找到 {0} 个附近的商店（前缀：出售=买货，收购=卖货换钱）
+SHOP_NEARBY_SHOPS_PANEL_ERROR=§c显示附近商店时出现错误
+# 通用标签
+SHOP_STOCK_INFINITE=无限
+SHOP_STOCK_LABEL=库存
+SHOP_BUDGET_LABEL=预算
+SHOP_UNIT_PRICE_LABEL=单价
+SHOP_BLOCKS_UNIT=方块
+SHOP_ENCHANT_TAG=附魔
+SHOP_LORE_TAG=Lore
+# 商店管理面板
+SHOP_MANAGE_SHOP_TITLE=管理商店
+SHOP_MANAGE_INFO_LABEL=商店信息:
+SHOP_OP_MANAGE_HINT=§e【OP 管理】先看类型：出售=别人来买货；收购=别人来卖货换钱。\n\n
+SHOP_MANAGE_POSITION=位置
+SHOP_MANAGE_CREATE_TIME=创建时间
+SHOP_MANAGE_ENCHANTS=附魔
+SHOP_MANAGE_ENCHANT_LINE=§7  - {0} 等级{1}
+SHOP_MANAGE_LEVEL=等级
+SHOP_MANAGE_LORE=Lore
+SHOP_COLLECTED_ITEMS_TOTAL=收集的物品: {0} 个
+SHOP_BUDGET_BALANCE_LABEL=预算余额
+SHOP_RESTOCK_BUTTON=补充库存
+SHOP_COLLECT_ITEMS_BUTTON=收取物品
+SHOP_CONVERT_INFINITE_BUTTON=转换为无限商店（系统商店）
+SHOP_DELETE_SHOP_BUTTON=删除商店
+SHOP_MANAGE_PANEL_ERROR=§c显示商店管理面板时出现错误
+# 转换无限商店
+SHOP_CONVERT_INFINITE_TITLE=转换为无限商店
+SHOP_ALREADY_INFINITE=该商店已是无限商店
+SHOP_CONVERT_INFINITE_SUCCESS=已将该商店转换为系统无限商店（无限库存/预算）
+SHOP_CONVERT_INFINITE_ERROR=§c转换失败
+# 补充库存面板
+SHOP_RESTOCK_TITLE=补充库存
+SHOP_RESTOCK_FOR_ITEM=为 {0} 补充库存
+SHOP_CURRENT_STOCK=当前库存
+SHOP_RESTOCK_QUANTITY_LABEL=补充数量
+SHOP_RESTOCK_QUANTITY_PLACEHOLDER=输入要补充的数量
+SHOP_RESTOCK_SUCCESS=§a成功补充 {0} 个 {1}
+SHOP_RESTOCK_ERROR=§c补充库存时出现错误
+SHOP_RESTOCK_PANEL_ERROR=§c显示补充库存面板时出现错误
+# 删除商店面板
+SHOP_DELETE_SHOP_TITLE=删除商店
+SHOP_CONFIRM_DELETE=确定要删除这个商店吗？
+SHOP_REMAINING_STOCK=剩余库存
+SHOP_REMAINING_BUDGET=剩余预算
+SHOP_DELETE_INFINITE_NOTICE=系统商店：删除后无库存/预算返还；与创建者资金无关。
+SHOP_DELETE_SELL_NOTICE=删除后剩余库存将返还给店主（在线时发到背包）。
+SHOP_DELETE_BUY_NOTICE=删除后剩余预算将返还给店主；未收取的收购品将返还给店主（在线时发到背包）。
+SHOP_CONFIRM_DELETE_BUTTON=确定删除
+SHOP_CANCEL_BUTTON=取消
+SHOP_DELETE_PANEL_ERROR=§c显示删除确认面板时出现错误
+# 执行删除商店
+SHOP_SYSTEM_DELETE_SUCCESS=系统商店已成功删除
+SHOP_SYSTEM_DELETED=系统商店已删除
+SHOP_DELETE_SELL_RETURN=商店已成功删除，{0} 个 {1} 已返还到背包
+SHOP_DELETE_BUY_RETURN=商店已成功删除，剩余预算 {0} 已返还，收集的物品已返还到背包
+SHOP_DELETE_ERROR=§c删除商店时出现错误
+# 破坏删除
+SHOP_BREAK_DELETE_SUCCESS=商店已删除，{0} 批收集的物品（共 {1} 个）已返还到背包
+# 收取物品面板
+SHOP_COLLECT_ITEMS_TITLE=收取物品
+SHOP_NO_COLLECTED_ITEMS=没有收集到任何物品
+SHOP_COLLECTED_ITEMS_COUNT=收集到 {0} 批物品
+SHOP_COLLECT_ALL_BUTTON=一键收取所有
+SHOP_COLLECT_SINGLE_SUCCESS=成功收取 {0} 个 {1}
+SHOP_INVENTORY_FULL_COLLECT=背包空间不足，无法收取物品
+SHOP_COLLECT_ALL_SUCCESS=成功收取所有 {0} 批物品
+SHOP_COLLECT_PARTIAL_SUCCESS=成功收取 {0} 批物品，{1} 批因背包空间不足而保留
+SHOP_INVENTORY_FULL_COLLECT_ALL=背包空间不足，无法收取任何物品
+SHOP_COLLECT_ITEM_ERROR=§c收取物品时出现错误
+SHOP_COLLECT_PANEL_ERROR=§c显示收取物品面板时出现错误
+# API 接口
+SHOP_API_NOT_FOUND=商店不存在
+SHOP_API_BUYER_OFFLINE=买家不在线
+SHOP_API_PURCHASE_ERROR=购买时出现系统错误
