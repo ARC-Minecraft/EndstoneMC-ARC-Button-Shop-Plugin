@@ -92,3 +92,6 @@ SHOP_REMOVAL_ERROR=§cError occurred while removing shop!
 
 # Interaction hint messages
 SHOP_NOT_BUTTON=§cYou are interacting with §e{0}§c, please use a button to create a shop!
+SHOP_BUY_SUSPENDED=§c§l[Buy Suspended]§r
+SHOP_BUY_SUSPENDED_DETAIL=§cBuy price has exceeded sell price, buyback is temporarily suspended. §7It will resume automatically after price recovery.
+SHOP_BUY_SUSPENDED_MSG=§cThis item's buy price has exceeded sell price, buyback is temporarily suspended! §7Please wait for price recovery.

@@ -1,0 +1,594 @@
+# 官方定价配置文件
+# 物品类型: 出售价(sell)和回收价(buy)
+# sell: 玩家从系统商店购买的价格
+# buy: 玩家出售给系统商店的价格
+# 注意: buy 必须小于 sell，否则回收功能会被自动暂停
+
+prices:
+  # ========== 矿物与宝石 ==========
+  minecraft:diamond:
+    sell: 10000
+    buy: 5000
+  minecraft:iron_ingot:
+    sell: 200
+    buy: 100
+  minecraft:gold_ingot:
+    sell: 1000
+    buy: 500
+  minecraft:coal:
+    sell: 40
+    buy: 20
+  minecraft:emerald:
+    sell: 8000
+    buy: 4000
+  minecraft:lapis_lazuli:
+    sell: 300
+    buy: 150
+  minecraft:redstone:
+    sell: 60
+    buy: 30
+  minecraft:netherite_ingot:
+    sell: 100000
+    buy: 50000
+  minecraft:netherite_scrap:
+    sell: 30000
+    buy: 15000
+  minecraft:quartz:
+    sell: 80
+    buy: 40
+  minecraft:copper_ingot:
+    sell: 50
+    buy: 25
+  minecraft:amethyst_shard:
+    sell: 120
+    buy: 60
+  minecraft:ancient_debris:
+    sell: 60000
+    buy: 30000
+
+  # ========== 矿石方块 ==========
+  minecraft:diamond_block:
+    sell: 90000
+    buy: 45000
+  minecraft:iron_block:
+    sell: 1800
+    buy: 900
+  minecraft:gold_block:
+    sell: 9000
+    buy: 4500
+  minecraft:emerald_block:
+    sell: 72000
+    buy: 36000
+  minecraft:lapis_block:
+    sell: 2700
+    buy: 1350
+  minecraft:redstone_block:
+    sell: 540
+    buy: 270
+  minecraft:coal_block:
+    sell: 360
+    buy: 180
+  minecraft:copper_block:
+    sell: 450
+    buy: 225
+  minecraft:netherite_block:
+    sell: 900000
+    buy: 450000
+  minecraft:obsidian:
+    sell: 100
+    buy: 50
+
+  # ========== 工具与武器 ==========
+  minecraft:diamond_sword:
+    sell: 25000
+    buy: 12500
+  minecraft:diamond_pickaxe:
+    sell: 30000
+    buy: 15000
+  minecraft:diamond_axe:
+    sell: 30000
+    buy: 15000
+  minecraft:diamond_shovel:
+    sell: 12000
+    buy: 6000
+  minecraft:diamond_hoe:
+    sell: 25000
+    buy: 12500
+  minecraft:iron_sword:
+    sell: 500
+    buy: 250
+  minecraft:iron_pickaxe:
+    sell: 600
+    buy: 300
+  minecraft:iron_axe:
+    sell: 600
+    buy: 300
+  minecraft:iron_shovel:
+    sell: 300
+    buy: 150
+  minecraft:iron_hoe:
+    sell: 500
+    buy: 250
+  minecraft:stone_sword:
+    sell: 100
+    buy: 50
+  minecraft:stone_pickaxe:
+    sell: 100
+    buy: 50
+  minecraft:stone_axe:
+    sell: 100
+    buy: 50
+  minecraft:wooden_sword:
+    sell: 20
+    buy: 10
+  minecraft:wooden_pickaxe:
+    sell: 20
+    buy: 10
+  minecraft:wooden_axe:
+    sell: 20
+    buy: 10
+  minecraft:bow:
+    sell: 600
+    buy: 300
+  minecraft:crossbow:
+    sell: 1000
+    buy: 500
+  minecraft:trident:
+    sell: 80000
+    buy: 40000
+  minecraft:shears:
+    sell: 200
+    buy: 100
+  minecraft:flint_and_steel:
+    sell: 200
+    buy: 100
+
+  # ========== 防具 ==========
+  minecraft:diamond_helmet:
+    sell: 60000
+    buy: 30000
+  minecraft:diamond_chestplate:
+    sell: 100000
+    buy: 50000
+  minecraft:diamond_leggings:
+    sell: 85000
+    buy: 42500
+  minecraft:diamond_boots:
+    sell: 50000
+    buy: 25000
+  minecraft:iron_helmet:
+    sell: 1000
+    buy: 500
+  minecraft:iron_chestplate:
+    sell: 1600
+    buy: 800
+  minecraft:iron_leggings:
+    sell: 1400
+    buy: 700
+  minecraft:iron_boots:
+    sell: 800
+    buy: 400
+  minecraft:netherite_helmet:
+    sell: 150000
+    buy: 75000
+  minecraft:netherite_chestplate:
+    sell: 250000
+    buy: 125000
+  minecraft:netherite_leggings:
+    sell: 200000
+    buy: 100000
+  minecraft:netherite_boots:
+    sell: 120000
+    buy: 60000
+  minecraft:shield:
+    sell: 600
+    buy: 300
+  minecraft:elytra:
+    sell: 200000
+    buy: 100000
+  minecraft:turtle_helmet:
+    sell: 4000
+    buy: 2000
+
+  # ========== 食物 ==========
+  minecraft:apple:
+    sell: 30
+    buy: 15
+  minecraft:golden_apple:
+    sell: 4000
+    buy: 2000
+  minecraft:enchanted_golden_apple:
+    sell: 100000
+    buy: 50000
+  minecraft:bread:
+    sell: 20
+    buy: 10
+  minecraft:cooked_porkchop:
+    sell: 40
+    buy: 20
+  minecraft:cooked_beef:
+    sell: 50
+    buy: 25
+  minecraft:cooked_chicken:
+    sell: 40
+    buy: 20
+  minecraft:cooked_mutton:
+    sell: 40
+    buy: 20
+  minecraft:cooked_cod:
+    sell: 30
+    buy: 15
+  minecraft:cooked_salmon:
+    sell: 30
+    buy: 15
+  minecraft:golden_carrot:
+    sell: 3000
+    buy: 1500
+  minecraft:pumpkin_pie:
+    sell: 50
+    buy: 25
+  minecraft:cake:
+    sell: 100
+    buy: 50
+  minecraft:cookie:
+    sell: 16
+    buy: 8
+  minecraft:melon_slice:
+    sell: 10
+    buy: 5
+  minecraft:sweet_berries:
+    sell: 10
+    buy: 5
+  minecraft:baked_potato:
+    sell: 24
+    buy: 12
+  minecraft:mushroom_stew:
+    sell: 60
+    buy: 30
+  minecraft:rabbit_stew:
+    sell: 100
+    buy: 50
+  minecraft:beetroot_soup:
+    sell: 50
+    buy: 25
+
+  # ========== 农业与种植 ==========
+  minecraft:wheat:
+    sell: 16
+    buy: 8
+  minecraft:wheat_seeds:
+    sell: 6
+    buy: 3
+  minecraft:carrot:
+    sell: 10
+    buy: 5
+  minecraft:potato:
+    sell: 10
+    buy: 5
+  minecraft:beetroot:
+    sell: 10
+    buy: 5
+  minecraft:pumpkin_seeds:
+    sell: 10
+    buy: 5
+  minecraft:melon_seeds:
+    sell: 10
+    buy: 5
+  minecraft:beetroot_seeds:
+    sell: 10
+    buy: 5
+  minecraft:nether_wart:
+    sell: 40
+    buy: 20
+  minecraft:sugar_cane:
+    sell: 16
+    buy: 8
+  minecraft:cocoa_beans:
+    sell: 20
+    buy: 10
+
+  # ========== 炼药与酿造 ==========
+  minecraft:blaze_rod:
+    sell: 600
+    buy: 300
+  minecraft:blaze_powder:
+    sell: 300
+    buy: 150
+  minecraft:ghast_tear:
+    sell: 1000
+    buy: 500
+  minecraft:magma_cream:
+    sell: 200
+    buy: 100
+  minecraft:fermented_spider_eye:
+    sell: 60
+    buy: 30
+  minecraft:spider_eye:
+    sell: 20
+    buy: 10
+  minecraft:glass_bottle:
+    sell: 10
+    buy: 5
+  minecraft:brewing_stand:
+    sell: 1000
+    buy: 500
+  minecraft:cauldron:
+    sell: 800
+    buy: 400
+
+  # ========== 红石与机械 ==========
+  minecraft:redstone_torch:
+    sell: 100
+    buy: 50
+  minecraft:repeater:
+    sell: 160
+    buy: 80
+  minecraft:comparator:
+    sell: 240
+    buy: 120
+  minecraft:piston:
+    sell: 300
+    buy: 150
+  minecraft:sticky_piston:
+    sell: 500
+    buy: 250
+  minecraft:observer:
+    sell: 400
+    buy: 200
+  minecraft:hopper:
+    sell: 1000
+    buy: 500
+  minecraft:dispenser:
+    sell: 400
+    buy: 200
+  minecraft:dropper:
+    sell: 300
+    buy: 150
+  minecraft:noteblock:
+    sell: 200
+    buy: 100
+  minecraft:tnt:
+    sell: 600
+    buy: 300
+  minecraft:lever:
+    sell: 20
+    buy: 10
+  minecraft:stone_button:
+    sell: 10
+    buy: 5
+
+  # ========== 建筑材料 ==========
+  minecraft:dirt:
+    sell: 2
+    buy: 1
+  minecraft:stone:
+    sell: 10
+    buy: 5
+  minecraft:cobblestone:
+    sell: 6
+    buy: 3
+  minecraft:stone_bricks:
+    sell: 16
+    buy: 8
+  minecraft:oak_planks:
+    sell: 10
+    buy: 5
+  minecraft:spruce_planks:
+    sell: 10
+    buy: 5
+  minecraft:birch_planks:
+    sell: 10
+    buy: 5
+  minecraft:glass:
+    sell: 16
+    buy: 8
+  minecraft:sand:
+    sell: 6
+    buy: 3
+  minecraft:sandstone:
+    sell: 16
+    buy: 8
+  minecraft:bricks:
+    sell: 20
+    buy: 10
+  minecraft:clay_ball:
+    sell: 10
+    buy: 5
+  minecraft:nether_bricks:
+    sell: 20
+    buy: 10
+  minecraft:quartz_block:
+    sell: 720
+    buy: 360
+  minecraft:purpur_block:
+    sell: 60
+    buy: 30
+
+  # ========== 装饰与杂项 ==========
+  minecraft:torch:
+    sell: 10
+    buy: 5
+  minecraft:lantern:
+    sell: 100
+    buy: 50
+  minecraft:soul_lantern:
+    sell: 100
+    buy: 50
+  minecraft:campfire:
+    sell: 160
+    buy: 80
+  minecraft:bone_meal:
+    sell: 10
+    buy: 5
+  minecraft:ink_sac:
+    sell: 16
+    buy: 8
+  minecraft:glowstone_dust:
+    sell: 40
+    buy: 20
+  minecraft:glow_ink_sac:
+    sell: 80
+    buy: 40
+  minecraft:string:
+    sell: 10
+    buy: 5
+  minecraft:feather:
+    sell: 10
+    buy: 5
+  minecraft:leather:
+    sell: 20
+    buy: 10
+  minecraft:slime_ball:
+    sell: 40
+    buy: 20
+  minecraft:egg:
+    sell: 10
+    buy: 5
+  minecraft:arrow:
+    sell: 6
+    buy: 3
+  minecraft:bucket:
+    sell: 200
+    buy: 100
+
+  # ========== 稀有与特殊物品 ==========
+  minecraft:ender_pearl:
+    sell: 400
+    buy: 200
+  minecraft:ender_eye:
+    sell: 800
+    buy: 400
+  minecraft:nether_star:
+    sell: 60000
+    buy: 30000
+  minecraft:totem_of_undying:
+    sell: 100000
+    buy: 50000
+  minecraft:dragon_breath:
+    sell: 10000
+    buy: 5000
+  minecraft:experience_bottle:
+    sell: 100
+    buy: 50
+  minecraft:name_tag:
+    sell: 1000
+    buy: 500
+  minecraft:lead:
+    sell: 200
+    buy: 100
+  minecraft:saddle:
+    sell: 600
+    buy: 300
+  minecraft:enchanted_book:
+    sell: 2000
+    buy: 1000
+  minecraft:firework_rocket:
+    sell: 40
+    buy: 20
+  minecraft:banner:
+    sell: 100
+    buy: 50
+
+  # ========== 海洋相关 ==========
+  minecraft:prismarine_shard:
+    sell: 60
+    buy: 30
+  minecraft:prismarine_crystals:
+    sell: 160
+    buy: 80
+  minecraft:nautilus_shell:
+    sell: 2000
+    buy: 1000
+  minecraft:heart_of_the_sea:
+    sell: 60000
+    buy: 30000
+  minecraft:scute:
+    sell: 400
+    buy: 200
+
+  # ========== 下界相关 ==========
+  minecraft:soul_sand:
+    sell: 30
+    buy: 15
+  minecraft:netherrack:
+    sell: 2
+    buy: 1
+  minecraft:basalt:
+    sell: 10
+    buy: 5
+  minecraft:blackstone:
+    sell: 16
+    buy: 8
+  minecraft:crying_obsidian:
+    sell: 400
+    buy: 200
+  minecraft:respawn_anchor:
+    sell: 24000
+    buy: 12000
+
+  # ========== 末地相关 ==========
+  minecraft:end_stone:
+    sell: 20
+    buy: 10
+  minecraft:chorus_fruit:
+    sell: 30
+    buy: 15
+  minecraft:shulker_shell:
+    sell: 4000
+    buy: 2000
+  minecraft:ender_chest:
+    sell: 3000
+    buy: 1500
+  minecraft:end_rod:
+    sell: 60
+    buy: 30
+
+  # ========== 染料 ==========
+  minecraft:black_dye:
+    sell: 20
+    buy: 10
+  minecraft:red_dye:
+    sell: 20
+    buy: 10
+  minecraft:green_dye:
+    sell: 20
+    buy: 10
+  minecraft:brown_dye:
+    sell: 20
+    buy: 10
+  minecraft:blue_dye:
+    sell: 20
+    buy: 10
+  minecraft:yellow_dye:
+    sell: 20
+    buy: 10
+  minecraft:white_dye:
+    sell: 20
+    buy: 10
+  minecraft:pink_dye:
+    sell: 20
+    buy: 10
+  minecraft:orange_dye:
+    sell: 20
+    buy: 10
+  minecraft:light_blue_dye:
+    sell: 20
+    buy: 10
+  minecraft:magenta_dye:
+    sell: 20
+    buy: 10
+  minecraft:lime_dye:
+    sell: 20
+    buy: 10
+  minecraft:cyan_dye:
+    sell: 20
+    buy: 10
+  minecraft:purple_dye:
+    sell: 20
+    buy: 10
+  minecraft:light_gray_dye:
+    sell: 20
+    buy: 10
+  minecraft:gray_dye:
+    sell: 20
+    buy: 10

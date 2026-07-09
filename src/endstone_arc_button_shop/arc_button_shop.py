@@ -13,6 +13,7 @@ from .DatabaseManager import DatabaseManager
 from .InventoryManager import InventoryManager
 from .LanguageManager import LanguageManager
 from .SettingManager import SettingManager
+from .PriceManager import PriceManager
 
 
 class ARCButtonShopPlugin(Plugin):
@@ -84,6 +85,10 @@ class ARCButtonShopPlugin(Plugin):
         
         # 创建商店相关表
         self._create_shop_tables()
+        
+        # 初始化价格管理器（官方定价系统）
+        self.price_manager = PriceManager(self)
+        self.price_manager.load_price_adjustments_from_db(self.db_manager)
 
     def on_enable(self) -> None:
         self._safe_log('info', "[ARCButtonShop] on_enable is called!")
@@ -92,12 +97,79 @@ class ARCButtonShopPlugin(Plugin):
         # 初始化经济插件 - 检查 arc_core 优先，然后 umoney
         self._init_economy_plugin()
 
+        # 注册定时任务
+        self._register_scheduled_tasks()
+
     def on_disable(self) -> None:
         self._safe_log('info', "[ARCButtonShop] on_disable is called!")
+        
+        # 取消所有定时任务
+        self._cancel_scheduled_tasks()
         
         # 关闭数据库连接
         if hasattr(self, 'db_manager'):
             self.db_manager.close()
+
+    # ==================== 定时任务 ====================
+
+    def _register_scheduled_tasks(self):
+        """注册所有定时任务"""
+        try:
+            scheduler = self.server.scheduler
+            # 每日波动 - 延迟1分钟后首次检查，之后每24小时(1728000tick)执行一次
+            self._daily_task = scheduler.run_task(
+                self, self._daily_fluctuation_task, delay=1200, period=1728000
+            )
+            self._safe_log('info', f"[ARCButtonShop] Daily fluctuation task registered (id={self._daily_task.task_id})")
+
+            # 价格恢复 - 每1小时(72000tick)执行一次
+            self._recovery_task = scheduler.run_task(
+                self, self._price_recovery_task, delay=0, period=72000
+            )
+            self._safe_log('info', f"[ARCButtonShop] Price recovery task registered (id={self._recovery_task.task_id})")
+
+            # 过期清理 - 延迟5分钟后首次执行，之后每24小时执行一次
+            self._cleanup_task = scheduler.run_task(
+                self, self._cleanup_task_handler, delay=6000, period=1728000
+            )
+            self._safe_log('info', f"[ARCButtonShop] Cleanup task registered (id={self._cleanup_task.task_id})")
+
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Failed to register scheduled tasks: {e}")
+
+    def _cancel_scheduled_tasks(self):
+        """取消所有定时任务"""
+        try:
+            scheduler = self.server.scheduler
+            scheduler.cancel_tasks(self)
+            self._safe_log('info', "[ARCButtonShop] All scheduled tasks cancelled")
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Failed to cancel scheduled tasks: {e}")
+
+    def _daily_fluctuation_task(self):
+        """每日波动定时任务"""
+        try:
+            if hasattr(self, 'price_manager') and hasattr(self, 'db_manager'):
+                self.price_manager.check_and_apply_daily_fluctuation(self.db_manager)
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Daily fluctuation task error: {e}")
+
+    def _price_recovery_task(self):
+        """价格恢复定时任务（每小时）"""
+        try:
+            if hasattr(self, 'price_manager') and hasattr(self, 'db_manager'):
+                self.price_manager.apply_price_recovery(self.db_manager)
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Price recovery task error: {e}")
+
+    def _cleanup_task_handler(self):
+        """过期数据清理定时任务"""
+        try:
+            if hasattr(self, 'price_manager') and hasattr(self, 'db_manager'):
+                self.price_manager.cleanup_old_trade_volumes(self.db_manager, days=7)
+                self._safe_log('info', "[ARCButtonShop] Old trade volumes cleaned up")
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Cleanup task error: {e}")
     
     def _init_default_settings(self) -> None:
         """初始化默认配置"""
@@ -118,6 +190,25 @@ class ARCButtonShopPlugin(Plugin):
         if tax_enabled is None:
             self.setting_manager.SetSetting("trade_tax_enabled", "true")
             self._safe_log('info', "[ARCButtonShop] Trade tax enabled by default")
+
+        dynamic_pricing_defaults = {
+            "dynamic_pricing_enabled": "true",
+            "dynamic_pricing_time_window_minutes": "60",
+            "dynamic_pricing_sell_amount_per_percent": "10000",
+            "dynamic_pricing_buy_amount_per_percent": "10000",
+            "dynamic_pricing_max_sell_increase": "0.50",
+            "dynamic_pricing_max_buy_decrease": "0.30",
+            "dynamic_pricing_sell_buy_link_ratio": "0.5",
+            "dynamic_pricing_recovery_rate_per_hour": "0.0002",
+            "daily_fluctuation_enabled": "true",
+            "daily_fluctuation_item_count": "3",
+            "daily_fluctuation_min_percent": "-15",
+            "daily_fluctuation_max_percent": "15",
+            "daily_fluctuation_reset_hour": "0",
+        }
+        for key, value in dynamic_pricing_defaults.items():
+            if self.setting_manager.GetSetting(key) is None:
+                self.setting_manager.SetSetting(key, value)
 
     def _init_economy_plugin(self) -> None:
         """初始化经济插件 - 检查 arc_core 优先，然后 umoney"""
@@ -234,8 +325,50 @@ class ARCButtonShopPlugin(Plugin):
         else:
             self._safe_log('error', "[ARCButtonShop] Failed to create chunk index table")
 
+        # 创建交易量追踪表（用于动态定价）
+        trade_volume_fields = {
+            "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+            "item_type": "TEXT NOT NULL",  # 物品类型
+            "trade_type": "TEXT NOT NULL",  # 交易类型：'sell'玩家购买, 'buy'玩家出售
+            "quantity": "INTEGER NOT NULL",  # 交易数量
+            "total_amount": "REAL NOT NULL DEFAULT 0",  # 交易总金额（单价×数量）
+            "trade_time": "TEXT NOT NULL"  # 交易时间
+        }
+        
+        if self.db_manager.create_table("item_trade_volume", trade_volume_fields):
+            self._safe_log('info', "[ARCButtonShop] Item trade volume table created successfully")
+        else:
+            self._safe_log('error', "[ARCButtonShop] Failed to create item trade volume table")
+        
+        # 创建价格调整表（用于动态定价和每日波动）
+        price_adjustment_fields = {
+            "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+            "item_type": "TEXT NOT NULL UNIQUE",  # 物品类型
+            "demand_sell_adjust": "REAL NOT NULL DEFAULT 0",  # 需求驱动的出售价调整（正数=涨价）
+            "demand_buy_adjust": "REAL NOT NULL DEFAULT 0",  # 需求驱动的回收价调整（负数=降价）
+            "daily_adjust_percent": "REAL NOT NULL DEFAULT 0",  # 每日波动百分比
+            "sell_amount_accumulated": "REAL NOT NULL DEFAULT 0",  # 出售交易累计金额（未消耗部分）
+            "buy_amount_accumulated": "REAL NOT NULL DEFAULT 0",  # 收购交易累计金额（未消耗部分）
+            "sell_link_adjust": "REAL NOT NULL DEFAULT 0",  # 出售涨价联动到回收价的调整（正数=涨价）
+            "last_updated": "TEXT NOT NULL"  # 最后更新时间
+        }
+        
+        if self.db_manager.create_table("price_adjustments", price_adjustment_fields):
+            self._safe_log('info', "[ARCButtonShop] Price adjustments table created successfully")
+        else:
+            self._safe_log('error', "[ARCButtonShop] Failed to create price adjustments table")
+
         # 迁移：为已有表添加 is_infinite 列（若不存在）
         self._migrate_add_is_infinite_column()
+        
+        # 迁移：为已有表添加 pricing_mode 和 discount_percent 列（若不存在）
+        self._migrate_add_pricing_columns()
+        
+        # 迁移：为 item_trade_volume 表添加 total_amount 列（若不存在）
+        self._migrate_add_trade_amount_column()
+        
+        # 迁移：为 price_adjustments 表添加累计金额列（若不存在）
+        self._migrate_add_accumulated_columns()
 
     def _migrate_add_is_infinite_column(self) -> None:
         """为 button_shops 表添加 is_infinite 列（兼容旧数据库）"""
@@ -251,6 +384,66 @@ class ARCButtonShopPlugin(Plugin):
                 self._safe_log('info', "[ARCButtonShop] Migrated: added is_infinite column to button_shops")
         except Exception as e:
             self._safe_log('error', f"[ARCButtonShop] Migrate is_infinite column error: {str(e)}")
+
+    def _migrate_add_pricing_columns(self) -> None:
+        """为 button_shops 表添加 pricing_mode 和 discount_percent 列（兼容旧数据库）"""
+        try:
+            rows = self.db_manager.query_all("PRAGMA table_info(button_shops)")
+            if rows is None:
+                return
+            column_names = [row['name'] for row in rows]
+            if 'pricing_mode' not in column_names:
+                self.db_manager.execute(
+                    "ALTER TABLE button_shops ADD COLUMN pricing_mode TEXT NOT NULL DEFAULT 'manual'"
+                )
+                self._safe_log('info', "[ARCButtonShop] Migrated: added pricing_mode column to button_shops")
+            if 'discount_percent' not in column_names:
+                self.db_manager.execute(
+                    "ALTER TABLE button_shops ADD COLUMN discount_percent REAL NOT NULL DEFAULT 0"
+                )
+                self._safe_log('info', "[ARCButtonShop] Migrated: added discount_percent column to button_shops")
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Migrate pricing columns error: {str(e)}")
+
+    def _migrate_add_trade_amount_column(self) -> None:
+        """为 item_trade_volume 表添加 total_amount 列（兼容旧数据库）"""
+        try:
+            rows = self.db_manager.query_all("PRAGMA table_info(item_trade_volume)")
+            if rows is None:
+                return
+            column_names = [row['name'] for row in rows]
+            if 'total_amount' not in column_names:
+                self.db_manager.execute(
+                    "ALTER TABLE item_trade_volume ADD COLUMN total_amount REAL NOT NULL DEFAULT 0"
+                )
+                self._safe_log('info', "[ARCButtonShop] Migrated: added total_amount column to item_trade_volume")
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Migrate total_amount column error: {str(e)}")
+
+    def _migrate_add_accumulated_columns(self) -> None:
+        """为 price_adjustments 表添加累计金额列和联动调整列（兼容旧数据库）"""
+        try:
+            rows = self.db_manager.query_all("PRAGMA table_info(price_adjustments)")
+            if rows is None:
+                return
+            column_names = [row['name'] for row in rows]
+            if 'sell_amount_accumulated' not in column_names:
+                self.db_manager.execute(
+                    "ALTER TABLE price_adjustments ADD COLUMN sell_amount_accumulated REAL NOT NULL DEFAULT 0"
+                )
+                self._safe_log('info', "[ARCButtonShop] Migrated: added sell_amount_accumulated column to price_adjustments")
+            if 'buy_amount_accumulated' not in column_names:
+                self.db_manager.execute(
+                    "ALTER TABLE price_adjustments ADD COLUMN buy_amount_accumulated REAL NOT NULL DEFAULT 0"
+                )
+                self._safe_log('info', "[ARCButtonShop] Migrated: added buy_amount_accumulated column to price_adjustments")
+            if 'sell_link_adjust' not in column_names:
+                self.db_manager.execute(
+                    "ALTER TABLE price_adjustments ADD COLUMN sell_link_adjust REAL NOT NULL DEFAULT 0"
+                )
+                self._safe_log('info', "[ARCButtonShop] Migrated: added sell_link_adjust column to price_adjustments")
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Migrate accumulated columns error: {str(e)}")
 
     # 无限商店库存/预算常量（表示无限）
     UNLIMITED_STOCK = 2147483647
@@ -406,6 +599,15 @@ class ARCButtonShopPlugin(Plugin):
                 type_panel.add_button(
                     self.language_manager.GetText("SHOP_TYPE_BUY_INFINITE_BUTTON"),
                     on_click=lambda sender: self._show_item_selection_panel(sender, "buy_infinite")
+                )
+                # 官方定价模式：从配置文件选物品，支持动态定价
+                type_panel.add_button(
+                    self.language_manager.GetText("SHOP_TYPE_OFFICIAL_SELL_BUTTON"),
+                    on_click=lambda sender: self._show_official_price_item_selection(sender, "sell")
+                )
+                type_panel.add_button(
+                    self.language_manager.GetText("SHOP_TYPE_OFFICIAL_BUY_BUTTON"),
+                    on_click=lambda sender: self._show_official_price_item_selection(sender, "buy")
                 )
             
             # 返回按钮
@@ -642,6 +844,227 @@ class ARCButtonShopPlugin(Plugin):
             self._safe_log('error', f"[ARCButtonShop] Show price setting panel error: {str(e)}")
             player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
 
+    # ==================== 官方定价模式 ====================
+
+    def _show_official_price_item_selection(self, player, shop_type="sell"):
+        """显示官方定价物品选择面板（从配置文件选物品）"""
+        try:
+            priced_items = self.price_manager.get_all_priced_items()
+            if not priced_items:
+                no_items_panel = ActionForm(
+                    title=self.language_manager.GetText("SHOP_OFFICIAL_PRICE_TITLE"),
+                    content=self.language_manager.GetText("SHOP_OFFICIAL_NO_ITEMS")
+                )
+                no_items_panel.add_button(
+                    self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                    on_click=lambda sender: self._show_shop_type_selection_panel(sender)
+                )
+                player.send_form(no_items_panel)
+                return
+
+            content_text = self.language_manager.GetText("SHOP_OFFICIAL_SELECT_CONTENT_SELL") if shop_type == "sell" else self.language_manager.GetText("SHOP_OFFICIAL_SELECT_CONTENT_BUY")
+            item_panel = ActionForm(
+                title=self.language_manager.GetText("SHOP_OFFICIAL_PRICE_TITLE"),
+                content=content_text
+            )
+
+            for item_type, prices in priced_items.items():
+                display_name = self.price_manager.get_item_display_name(item_type)
+                if shop_type == "sell":
+                    price = prices.get('sell', 0)
+                    # 显示动态价格
+                    final_price = self.price_manager.calculate_final_price(item_type, 'sell', 0)
+                    adj = self.price_manager.get_price_adjustment(item_type)
+                    price_text = f"{price}"
+                    if adj['daily_adjust_percent'] != 0 or adj['demand_sell_adjust'] != 0:
+                        price_text = f"{final_price}({price})"
+                    button_text = f"{display_name} - {self.language_manager.GetText('SHOP_OFFICIAL_SELL_PRICE')}{price_text}"
+                else:
+                    price = prices.get('buy', 0)
+                    final_price = self.price_manager.calculate_final_price(item_type, 'buy', 0)
+                    adj = self.price_manager.get_price_adjustment(item_type)
+                    price_text = f"{price}"
+                    if adj['daily_adjust_percent'] != 0 or adj['demand_buy_adjust'] != 0:
+                        price_text = f"{final_price}({price})"
+                    button_text = f"{display_name} - {self.language_manager.GetText('SHOP_OFFICIAL_BUY_PRICE')}{price_text}"
+
+                item_panel.add_button(
+                    button_text,
+                    on_click=lambda sender, it=item_type, pr=prices: self._show_official_discount_panel(sender, it, pr, shop_type)
+                )
+
+            item_panel.add_button(
+                self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                on_click=lambda sender: self._show_shop_type_selection_panel(sender)
+            )
+
+            player.send_form(item_panel)
+
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Show official price item selection error: {str(e)}")
+            player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
+
+    def _show_official_discount_panel(self, player, item_type, prices, shop_type="sell"):
+        """显示官方定价折扣设置面板"""
+        try:
+            display_name = self.price_manager.get_item_display_name(item_type)
+            base_price = prices.get('sell', 0) if shop_type == "sell" else prices.get('buy', 0)
+            final_price = self.price_manager.calculate_final_price(item_type, shop_type, 0)
+            adj = self.price_manager.get_price_adjustment(item_type)
+
+            # 回收禁用检查
+            buy_suspended = (shop_type == 'buy' and final_price is None)
+
+            # 构建价格信息
+            if buy_suspended:
+                info_text = self.language_manager.GetText("SHOP_BUY_SUSPENDED_DETAIL")
+            elif shop_type == "sell":
+                info_text = self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_INFO_SELL").format(
+                    display_name, base_price, final_price
+                )
+            else:
+                info_text = self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_INFO_BUY").format(
+                    display_name, base_price, final_price
+                )
+
+            # 显示动态定价信息
+            if adj['demand_sell_adjust'] != 0 or adj['demand_buy_adjust'] != 0:
+                if shop_type == "sell" and adj['demand_sell_adjust'] != 0:
+                    info_text += "\n" + self.language_manager.GetText("SHOP_OFFICIAL_DEMAND_ADJUST").format(
+                        f"{adj['demand_sell_adjust']:+.1%}"
+                    )
+                elif shop_type == "buy" and adj['demand_buy_adjust'] != 0:
+                    info_text += "\n" + self.language_manager.GetText("SHOP_OFFICIAL_DEMAND_ADJUST").format(
+                        f"{adj['demand_buy_adjust']:+.1%}"
+                    )
+
+            if adj['daily_adjust_percent'] != 0:
+                info_text += "\n" + self.language_manager.GetText("SHOP_OFFICIAL_DAILY_FLUCTUATION").format(
+                    f"{adj['daily_adjust_percent']:+.1f}%"
+                )
+
+            info_label = Label(text=info_text)
+            discount_input = TextInput(
+                label=self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_LABEL"),
+                placeholder=self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_PLACEHOLDER"),
+                default_value="0"
+            )
+
+            def process_official_shop_creation(sender, json_str: str):
+                try:
+                    data = json.loads(json_str)
+                    discount_str = data[1]
+                    try:
+                        discount_percent = float(discount_str)
+                        if discount_percent < -90 or discount_percent > 100:
+                            raise ValueError("Discount out of range")
+                    except ValueError:
+                        result_form = ActionForm(
+                            title=self.language_manager.GetText("SHOP_RESULT_TITLE"),
+                            content=self.language_manager.GetText("SHOP_OFFICIAL_INVALID_DISCOUNT")
+                        )
+                        result_form.add_button(
+                            self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                            on_click=lambda s: self._show_official_discount_panel(s, item_type, prices, shop_type)
+                        )
+                        sender.send_form(result_form)
+                        return
+
+                    # 计算最终价格
+                    calculated_price = self.price_manager.calculate_final_price(item_type, shop_type, discount_percent)
+                    if calculated_price is None or calculated_price <= 0:
+                        result_form = ActionForm(
+                            title=self.language_manager.GetText("SHOP_RESULT_TITLE"),
+                            content=self.language_manager.GetText("SHOP_OFFICIAL_PRICE_ERROR")
+                        )
+                        result_form.add_button(
+                            self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                            on_click=lambda s: self._show_official_discount_panel(s, item_type, prices, shop_type)
+                        )
+                        sender.send_form(result_form)
+                        return
+
+                    # 构造物品信息（官方定价模式不需要从背包取物品）
+                    item_info = {
+                        'type': item_type,
+                        'name': display_name,
+                        'count': 1,
+                        'data': 0,
+                        'enchants': {},
+                        'lore': []
+                    }
+
+                    shop_data = {
+                        'item_info': item_info,
+                        'unit_price': calculated_price,
+                        'shop_type': shop_type,
+                        'budget': 0,
+                        'is_infinite': True,
+                        'pricing_mode': 'official',
+                        'discount_percent': discount_percent,
+                        'create_time': datetime.datetime.now()
+                    }
+                    self.setting_shop_player[sender.name] = shop_data
+
+                    # 显示设置说明
+                    discount_text = f" ({discount_percent:+.0f}%)" if discount_percent != 0 else ""
+                    if shop_type == "sell":
+                        instruction_content = self.language_manager.GetText("SHOP_OFFICIAL_SETUP_SELL").format(
+                            display_name, calculated_price, base_price, discount_text
+                        ).replace('\\n', '\n')
+                    else:
+                        instruction_content = self.language_manager.GetText("SHOP_OFFICIAL_SETUP_BUY").format(
+                            display_name, calculated_price, base_price, discount_text
+                        ).replace('\\n', '\n')
+
+                    instruction_form = ActionForm(
+                        title=self.language_manager.GetText("SHOP_SETUP_TITLE"),
+                        content=instruction_content,
+                        on_close=lambda s: None
+                    )
+                    sender.send_form(instruction_form)
+
+                except Exception as e:
+                    self._safe_log('error', f"[ARCButtonShop] Process official shop creation error: {str(e)}")
+                    error_form = ActionForm(
+                        title=self.language_manager.GetText("SHOP_RESULT_TITLE"),
+                        content=self.language_manager.GetText("SHOP_PANEL_ERROR")
+                    )
+                    error_form.add_button(
+                        self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                        on_click=lambda s: self._show_shop_main_panel(s)
+                    )
+                    sender.send_form(error_form)
+
+            title = self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_TITLE_SELL") if shop_type == "sell" else self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_TITLE_BUY")
+            discount_panel = ModalForm(
+                title=title,
+                controls=[info_label, discount_input],
+                on_submit=process_official_shop_creation
+            )
+
+            player.send_form(discount_panel)
+
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Show official discount panel error: {str(e)}")
+            player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
+
+    def _get_shop_display_price(self, shop_data) -> str:
+        """获取商店的显示价格（官方定价模式返回动态价格，手动定价返回unit_price）"""
+        pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if pricing_mode == 'official':
+            item_type = shop_data.get('item_type', '')
+            shop_type = shop_data.get('shop_type', 'sell')
+            discount_percent = float(shop_data.get('discount_percent', 0) or 0)
+            final_price = self.price_manager.calculate_final_price(item_type, shop_type, discount_percent)
+            if final_price is not None:
+                return f"§d{final_price}§r"
+            else:
+                # 回收价反超出售价，回收已暂停
+                if shop_type == 'buy':
+                    return self.language_manager.GetText("SHOP_BUY_SUSPENDED")
+        return shop_data.get('unit_price', 0)
+
     def _is_shop_infinite(self, shop_data) -> bool:
         """判断商店是否为无限商店（系统商店）；兼容 SQLite 中 0/1、字符串等类型"""
         if not shop_data:
@@ -666,6 +1089,11 @@ class ARCButtonShopPlugin(Plugin):
         """管理/详情用：一行说明是出售还是收购（含系统无限说明）"""
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
+        pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if pricing_mode == 'official':
+            if shop_type == 'sell':
+                return self.language_manager.GetText("SHOP_TYPE_MANAGE_SELL_OFFICIAL")
+            return self.language_manager.GetText("SHOP_TYPE_MANAGE_BUY_OFFICIAL")
         if shop_type == 'sell':
             if is_infinite:
                 return self.language_manager.GetText("SHOP_TYPE_MANAGE_SELL_INFINITE")
@@ -678,6 +1106,11 @@ class ARCButtonShopPlugin(Plugin):
         """列表按钮用短标签：出售 / 收购"""
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
+        pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if pricing_mode == 'official':
+            if shop_type == 'sell':
+                return self.language_manager.GetText("SHOP_TYPE_TAG_SELL_OFFICIAL")
+            return self.language_manager.GetText("SHOP_TYPE_TAG_BUY_OFFICIAL")
         if shop_type == 'sell':
             return self.language_manager.GetText("SHOP_TYPE_TAG_SELL_INFINITE") if is_infinite else self.language_manager.GetText("SHOP_TYPE_TAG_SELL")
         return self.language_manager.GetText("SHOP_TYPE_TAG_BUY_INFINITE") if is_infinite else self.language_manager.GetText("SHOP_TYPE_TAG_BUY")
@@ -686,6 +1119,12 @@ class ARCButtonShopPlugin(Plugin):
         """管理面板顶部用：无 § 色码，避免部分客户端正文里看不清类型"""
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
+        pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if pricing_mode == 'official':
+            official_tag = self.language_manager.GetText("SHOP_TYPE_PLAIN_OFFICIAL_TAG")
+            if shop_type == 'sell':
+                return self.language_manager.GetText("SHOP_TYPE_PLAIN_SELL").format(official_tag)
+            return self.language_manager.GetText("SHOP_TYPE_PLAIN_BUY").format(official_tag)
         sys_tag = self.language_manager.GetText("SHOP_TYPE_PLAIN_SYSTEM_TAG") if is_infinite else ""
         if shop_type == 'sell':
             return self.language_manager.GetText("SHOP_TYPE_PLAIN_SELL").format(sys_tag)
@@ -695,6 +1134,11 @@ class ARCButtonShopPlugin(Plugin):
         """表单标题用短后缀，与正文类型一致（窗口标题不易被截断）"""
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
+        pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if pricing_mode == 'official':
+            if shop_type == 'sell':
+                return self.language_manager.GetText("SHOP_MANAGE_TITLE_SELL_OFFICIAL")
+            return self.language_manager.GetText("SHOP_MANAGE_TITLE_BUY_OFFICIAL")
         if shop_type == 'sell':
             return self.language_manager.GetText("SHOP_MANAGE_TITLE_SELL_INFINITE") if is_infinite else self.language_manager.GetText("SHOP_MANAGE_TITLE_SELL")
         return self.language_manager.GetText("SHOP_MANAGE_TITLE_BUY_INFINITE") if is_infinite else self.language_manager.GetText("SHOP_MANAGE_TITLE_BUY")
@@ -730,6 +1174,31 @@ class ARCButtonShopPlugin(Plugin):
             else:
                 shop_info += (self.language_manager.GetText("SHOP_DETAIL_STOCK").format(shop_data['stock']) + "\n") if shop_type == "sell" else (self.language_manager.GetText("SHOP_DETAIL_BUDGET").format(shop_data['stock']) + "\n")
             shop_info += self.language_manager.GetText("SHOP_DETAIL_PRICE").format(shop_data['unit_price']) + "\n"
+            
+            # 官方定价模式：显示动态价格信息
+            pricing_mode = shop_data.get('pricing_mode', 'manual')
+            if pricing_mode == 'official':
+                discount_percent = shop_data.get('discount_percent', 0.0)
+                item_type = shop_data.get('item_type', '')
+                display_price = self.price_manager.calculate_final_price(item_type, shop_type, discount_percent)
+                if display_price is not None and display_price != shop_data['unit_price']:
+                    shop_info += self.language_manager.GetText("SHOP_DETAIL_CURRENT_PRICE").format(display_price) + "\n"
+                elif display_price is None and shop_type == 'buy':
+                    # 回收价反超出售价，回收已暂停
+                    shop_info += self.language_manager.GetText("SHOP_BUY_SUSPENDED_DETAIL") + "\n"
+                adj = self.price_manager.get_price_adjustment(item_type)
+                base_price = self.price_manager.get_base_price(item_type, shop_type)
+                if base_price is not None:
+                    shop_info += self.language_manager.GetText("SHOP_DETAIL_BASE_PRICE").format(base_price) + "\n"
+                if adj['demand_sell_adjust'] != 0 or adj['demand_buy_adjust'] != 0:
+                    if shop_type == 'sell' and adj['demand_sell_adjust'] != 0:
+                        shop_info += self.language_manager.GetText("SHOP_OFFICIAL_DEMAND_ADJUST").format(f"{adj['demand_sell_adjust']:+.1%}") + "\n"
+                    elif shop_type == 'buy' and adj['demand_buy_adjust'] != 0:
+                        shop_info += self.language_manager.GetText("SHOP_OFFICIAL_DEMAND_ADJUST").format(f"{adj['demand_buy_adjust']:+.1%}") + "\n"
+                if adj['daily_adjust_percent'] != 0:
+                    shop_info += self.language_manager.GetText("SHOP_OFFICIAL_DAILY_FLUCTUATION").format(f"{adj['daily_adjust_percent']:+.1f}%") + "\n"
+                if discount_percent != 0:
+                    shop_info += self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_DISPLAY").format(f"{discount_percent:+.0f}%") + "\n"
             
             # 添加附魔信息
             if item_data.get('enchants'):
@@ -789,10 +1258,38 @@ class ARCButtonShopPlugin(Plugin):
             shop_type = shop_data.get('shop_type', 'sell')
             is_infinite = self._is_shop_infinite(shop_data)
             type_headline = f"{self._get_shop_type_plain_headline(shop_data)}\n\n"
-            if shop_type == "sell":
-                purchase_info = type_headline + self.language_manager.GetText("SHOP_PURCHASE_SELL_INFO").format(item_data.get('name', 'Unknown'), self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock']), shop_data['unit_price']) + "\n"
+            
+            # 官方定价模式：使用动态计算价格
+            pricing_mode = shop_data.get('pricing_mode', 'manual')
+            if pricing_mode == 'official':
+                discount_percent = shop_data.get('discount_percent', 0.0)
+                item_type = shop_data.get('item_type', '')
+                display_price = self.price_manager.calculate_final_price(item_type, shop_type, discount_percent)
+                if display_price is None:
+                    display_price = shop_data['unit_price']
             else:
-                purchase_info = type_headline + self.language_manager.GetText("SHOP_PURCHASE_BUY_INFO").format(item_data.get('name', 'Unknown'), self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock']), shop_data['unit_price']) + "\n"
+                display_price = shop_data['unit_price']
+            
+            if shop_type == "sell":
+                purchase_info = type_headline + self.language_manager.GetText("SHOP_PURCHASE_SELL_INFO").format(item_data.get('name', 'Unknown'), self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock']), display_price) + "\n"
+            else:
+                purchase_info = type_headline + self.language_manager.GetText("SHOP_PURCHASE_BUY_INFO").format(item_data.get('name', 'Unknown'), self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock']), display_price) + "\n"
+            
+            # 官方定价模式：显示价格组成信息
+            if pricing_mode == 'official':
+                adj = self.price_manager.get_price_adjustment(item_type)
+                base_price = self.price_manager.get_base_price(item_type, shop_type)
+                if base_price is not None and display_price != base_price:
+                    purchase_info += self.language_manager.GetText("SHOP_OFFICIAL_PRICE_BREAKDOWN").format(base_price, display_price) + "\n"
+                if adj['demand_sell_adjust'] != 0 or adj['demand_buy_adjust'] != 0:
+                    if shop_type == 'sell' and adj['demand_sell_adjust'] != 0:
+                        purchase_info += self.language_manager.GetText("SHOP_OFFICIAL_DEMAND_ADJUST").format(f"{adj['demand_sell_adjust']:+.1%}") + "\n"
+                    elif shop_type == 'buy' and adj['demand_buy_adjust'] != 0:
+                        purchase_info += self.language_manager.GetText("SHOP_OFFICIAL_DEMAND_ADJUST").format(f"{adj['demand_buy_adjust']:+.1%}") + "\n"
+                if adj['daily_adjust_percent'] != 0:
+                    purchase_info += self.language_manager.GetText("SHOP_OFFICIAL_DAILY_FLUCTUATION").format(f"{adj['daily_adjust_percent']:+.1f}%") + "\n"
+                if discount_percent != 0:
+                    purchase_info += self.language_manager.GetText("SHOP_OFFICIAL_DISCOUNT_DISPLAY").format(f"{discount_percent:+.0f}%") + "\n"
             
             # 添加附魔信息
             if item_data.get('enchants'):
@@ -839,7 +1336,7 @@ class ARCButtonShopPlugin(Plugin):
                             raise ValueError("Quantity must be positive")
                         if not is_infinite and quantity > shop_data['stock']:
                             raise ValueError("Not enough stock")
-                        if shop_type == "buy" and not is_infinite and quantity * shop_data['unit_price'] > shop_data['stock']:
+                        if shop_type == "buy" and not is_infinite and quantity * display_price > shop_data['stock']:
                             raise ValueError("Not enough budget")
                     except ValueError as e:
                         result_form = ActionForm(
@@ -904,6 +1401,8 @@ class ARCButtonShopPlugin(Plugin):
             shop_type = shop_data.get('shop_type', 'sell')
             budget = shop_data.get('budget', 0)
             is_infinite = shop_data.get('is_infinite', False)
+            pricing_mode = shop_data.get('pricing_mode', 'manual')
+            discount_percent = shop_data.get('discount_percent', 0.0)
             
             # 检查该位置是否已有商店
             existing_shop = self._get_shop_at_position(block.x, block.y, block.z, block.dimension.name)
@@ -954,6 +1453,8 @@ class ARCButtonShopPlugin(Plugin):
                 'unit_price': int(unit_price),
                 'stock': stock,
                 'is_infinite': 1 if is_infinite else 0,
+                'pricing_mode': pricing_mode,
+                'discount_percent': discount_percent,
                 'create_time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             
@@ -975,7 +1476,9 @@ class ARCButtonShopPlugin(Plugin):
                     # 更新区块索引
                     self._update_chunk_index(chunk_x, chunk_z, block.dimension.name, 1)
                     
-                    if is_infinite:
+                    if pricing_mode == 'official':
+                        player.send_message(self.language_manager.GetText("SHOP_OFFICIAL_CREATED_SUCCESS").format(item_info['name'], unit_price, discount_percent))
+                    elif is_infinite:
                         player.send_message(self.language_manager.GetText("SHOP_INFINITE_CREATED_SUCCESS").format(item_info['name'], unit_price))
                     elif shop_type == "sell":
                         player.send_message(self.language_manager.GetText("SHOP_CREATED_SUCCESS").format(
@@ -1010,7 +1513,22 @@ class ARCButtonShopPlugin(Plugin):
         """执行购买操作（支持出售商店、收购商店和税收）"""
         try:
             shop_type = shop_data.get('shop_type', 'sell')
-            base_price = int(quantity * shop_data['unit_price'])
+            pricing_mode = shop_data.get('pricing_mode', 'manual')
+            
+            # 官方定价模式：使用动态计算价格
+            if pricing_mode == 'official':
+                discount_percent = shop_data.get('discount_percent', 0.0)
+                item_type = shop_data.get('item_type', '')
+                final_unit_price = self.price_manager.calculate_final_price(item_type, shop_type, discount_percent)
+                if final_unit_price is None:
+                    if shop_type == 'buy':
+                        return False, self.language_manager.GetText("SHOP_BUY_SUSPENDED_MSG")
+                    return False, self.language_manager.GetText("SHOP_OFFICIAL_PRICE_ERROR")
+                unit_price = final_unit_price
+            else:
+                unit_price = shop_data['unit_price']
+            
+            base_price = int(quantity * unit_price)
             tax_amount = self._calculate_tax(base_price)
             total_price = base_price + tax_amount
             
@@ -1023,17 +1541,25 @@ class ARCButtonShopPlugin(Plugin):
             if not current_shop or not current_shop['is_active']:
                 return False, self.language_manager.GetText("SHOP_NOT_AVAILABLE")
             
+            # 官方定价模式：记录交易量并更新需求定价
+            if pricing_mode == 'official':
+                trade_amount = base_price  # base_price已经是总价（单价×数量后的总价含税前）
+                self.price_manager.record_trade_volume(item_type, shop_type, quantity, self.db_manager, trade_amount)
+                self.price_manager.update_demand_pricing(item_type, self.db_manager)
+            
             if shop_type == "sell":
-                return self._execute_sell_shop_purchase(player, current_shop, quantity, base_price, tax_amount, total_price)
+                return self._execute_sell_shop_purchase(player, current_shop, quantity, base_price, tax_amount, total_price, unit_price)
             else:  # buy
-                return self._execute_buy_shop_purchase(player, current_shop, quantity, base_price, tax_amount, total_price)
+                return self._execute_buy_shop_purchase(player, current_shop, quantity, base_price, tax_amount, total_price, unit_price)
         except Exception as e:
             self._safe_log('error', f"[ARCButtonShop] Execute purchase error: {str(e)}")
             return False, self.language_manager.GetText("SHOP_PURCHASE_ERROR")
 
-    def _execute_sell_shop_purchase(self, player, shop_data, quantity, base_price, tax_amount, total_price):
+    def _execute_sell_shop_purchase(self, player, shop_data, quantity, base_price, tax_amount, total_price, unit_price=None):
         """执行出售商店的购买操作（含无限商店）"""
         try:
+            if unit_price is None:
+                unit_price = shop_data['unit_price']
             buyer_money = self._get_player_money(player.name)
             if buyer_money < total_price:
                 return False, self.language_manager.GetText("SHOP_INSUFFICIENT_FUNDS").format(total_price, buyer_money)
@@ -1051,7 +1577,7 @@ class ARCButtonShopPlugin(Plugin):
                 return False, self.language_manager.GetText("SHOP_ITEM_GIVE_FAILED")
 
             # 按实际发放数量重新计算费用/税
-            actual_base_price = int(given_qty * shop_data['unit_price'])
+            actual_base_price = int(given_qty * unit_price)
             actual_tax_amount = self._calculate_tax(actual_base_price)
             actual_total_price = actual_base_price + actual_tax_amount
 
@@ -1098,7 +1624,7 @@ class ARCButtonShopPlugin(Plugin):
                 shop_data['id'],
                 player,
                 int(given_qty),
-                shop_data['unit_price'],
+                unit_price,
                 actual_total_price,
                 actual_tax_amount
             )
@@ -1118,9 +1644,11 @@ class ARCButtonShopPlugin(Plugin):
             self._safe_log('error', f"[ARCButtonShop] Execute sell shop purchase error: {str(e)}")
             return False, self.language_manager.GetText("SHOP_PURCHASE_ERROR")
 
-    def _execute_buy_shop_purchase(self, player, shop_data, quantity, base_price, tax_amount, total_price):
+    def _execute_buy_shop_purchase(self, player, shop_data, quantity, base_price, tax_amount, total_price, unit_price=None):
         """执行收购商店的购买操作（玩家出售物品给收购商店，含无限商店）"""
         try:
+            if unit_price is None:
+                unit_price = shop_data['unit_price']
             is_infinite = self._is_shop_infinite(shop_data)
             if not is_infinite and shop_data['stock'] < base_price:
                 return False, self.language_manager.GetText("SHOP_INSUFFICIENT_BUDGET")
@@ -1164,7 +1692,7 @@ class ARCButtonShopPlugin(Plugin):
                 collected_items.append(collected_item)
                 update_data['stock'] = new_budget
                 update_data['collected_items'] = json.dumps(collected_items)
-                if new_budget < shop_data['unit_price']:
+                if new_budget < unit_price:
                     update_data['is_active'] = 0
             
             self.db_manager.update(
@@ -1175,7 +1703,7 @@ class ARCButtonShopPlugin(Plugin):
             )
             
             # 记录交易（注意：对收购商店，玩家是卖家）
-            self._record_transaction(shop_data['id'], player, quantity, shop_data['unit_price'], base_price, tax_amount, is_buy_shop=True)
+            self._record_transaction(shop_data['id'], player, quantity, unit_price, base_price, tax_amount, is_buy_shop=True)
             
             # 通知店主（系统商店不通知创建者）
             self._notify_shop_owner(shop_data, player.name, quantity, item_data['name'], base_price, "buy")
@@ -1427,7 +1955,55 @@ class ARCButtonShopPlugin(Plugin):
             # 重新加载配置
             sender.send_message(self.language_manager.GetText("SHOP_MANAGE_RELOAD_SUCCESS"))
             
+        elif command == "prices":
+            # 查看官方定价概览
+            self._handle_prices_command(sender)
+            
+        elif command == "pricereload":
+            # 重新加载官方定价配置
+            self.price_manager.reload_config()
+            self.price_manager.load_price_adjustments_from_db(self.db_manager)
+            sender.send_message(self.language_manager.GetText("SHOP_MANAGE_PRICERELOAD_SUCCESS"))
+            
+        elif command == "pricereset":
+            # 重置所有动态价格调整
+            self.price_manager.reset_all_adjustments(self.db_manager)
+            sender.send_message(self.language_manager.GetText("SHOP_MANAGE_PRICERESET_SUCCESS"))
+            
+        else:
+            sender.send_message(self.language_manager.GetText("SHOP_MANAGE_USAGE"))
+            
         return True
+
+    def _handle_prices_command(self, sender: CommandSender):
+        """处理 /shopmanage prices 命令"""
+        priced_items = self.price_manager.get_all_priced_items()
+        if not priced_items:
+            sender.send_message(self.language_manager.GetText("SHOP_MANAGE_PRICES_NO_ITEMS"))
+            return
+        
+        dynamic_enabled = self.setting_manager.GetSettingBool("dynamic_pricing_enabled")
+        daily_enabled = self.setting_manager.GetSettingBool("daily_fluctuation_enabled")
+        
+        content = self.language_manager.GetText("SHOP_MANAGE_PRICES_CONTENT").format(
+            len(priced_items),
+            "§a启用" if dynamic_enabled else "§c禁用",
+            "§a启用" if daily_enabled else "§c禁用"
+        )
+        sender.send_message(content)
+        
+        # 显示每个物品的定价信息
+        for item_type, prices in priced_items.items():
+            display_name = self.price_manager.get_item_display_name(item_type)
+            sell_price = prices.get('sell', 'N/A')
+            buy_price = prices.get('buy', 'N/A')
+            adj = self.price_manager.get_price_adjustment(item_type)
+            
+            line = f"§f{display_name}: §a出售{sell_price} §b收购{buy_price}"
+            if adj['daily_adjust_percent'] != 0:
+                sign = "+" if adj['daily_adjust_percent'] > 0 else ""
+                line += f" §7(波动{sign}{adj['daily_adjust_percent']:.1f}%)"
+            sender.send_message(line)
 
     def _show_all_shops_panel(self, player):
         """显示全部商店面板（OP 管理用）"""
@@ -1457,7 +2033,8 @@ class ARCButtonShopPlugin(Plugin):
                 item_data = json.loads(shop['item_data'])
                 is_infinite = self._is_shop_infinite(shop)
                 stock_text = self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else shop['stock']
-                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self._get_shop_owner_display(shop)} - {self.language_manager.GetText('SHOP_STOCK_LABEL') if shop.get('shop_type', 'sell') == 'sell' else self.language_manager.GetText('SHOP_BUDGET_LABEL')}:{stock_text} - {self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}:{shop['unit_price']}"
+                display_price = self._get_shop_display_price(shop)
+                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self._get_shop_owner_display(shop)} - {self.language_manager.GetText('SHOP_STOCK_LABEL') if shop.get('shop_type', 'sell') == 'sell' else self.language_manager.GetText('SHOP_BUDGET_LABEL')}:{stock_text} - {self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}:{display_price}"
                 panel.add_button(
                     button_text,
                     on_click=lambda sender, s=shop: self._show_shop_manage_panel(sender, s, from_all_shops=True)
@@ -1500,7 +2077,8 @@ class ARCButtonShopPlugin(Plugin):
             for shop in my_shops:
                 item_data = json.loads(shop['item_data'])
                 stock_text = self.language_manager.GetText("SHOP_STOCK_INFINITE") if self._is_shop_infinite(shop) else shop['stock']
-                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self.language_manager.GetText('SHOP_STOCK_LABEL')}:{stock_text} - {self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}:{shop['unit_price']}"
+                display_price = self._get_shop_display_price(shop)
+                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self.language_manager.GetText('SHOP_STOCK_LABEL')}:{stock_text} - {self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}:{display_price}"
                 if item_data.get('enchants'):
                     button_text += f" §b[{self.language_manager.GetText('SHOP_ENCHANT_TAG')}]"
                 if item_data.get('lore'):

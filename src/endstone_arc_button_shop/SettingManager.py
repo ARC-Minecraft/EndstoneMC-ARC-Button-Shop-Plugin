@@ -35,6 +35,30 @@ class SettingManager:
 
         return None if not SettingManager.setting_dict[key] else SettingManager.setting_dict[key]
 
+    def GetSettingBool(self, key, default=False):
+        value = self.GetSetting(key)
+        if value is None:
+            return default
+        return value.lower() in ('true', '1', 'yes')
+
+    def GetSettingFloat(self, key, default=0.0):
+        value = self.GetSetting(key)
+        if value is None:
+            return default
+        try:
+            return float(value)
+        except ValueError:
+            return default
+
+    def GetSettingInt(self, key, default=0):
+        value = self.GetSetting(key)
+        if value is None:
+            return default
+        try:
+            return int(float(value))
+        except ValueError:
+            return default
+
     def SetSetting(self, key, value):
         # Update setting in memory
         SettingManager.setting_dict[key] = str(value)
