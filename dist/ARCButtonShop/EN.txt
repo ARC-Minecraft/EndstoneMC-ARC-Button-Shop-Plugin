@@ -22,6 +22,8 @@ SHOP_PRICE_PANEL_TITLE=§eSet Item Price
 SHOP_PRICE_ITEM_INFO=§fItem to sell: §a{0} §fx§a{1}
 SHOP_PRICE_INPUT_LABEL=§eUnit Price Setting
 SHOP_PRICE_INPUT_PLACEHOLDER=Enter price per item, e.g.: 10
+SHOP_DISPLAY_NAME_LABEL=§eItem Display Name
+SHOP_DISPLAY_NAME_PLACEHOLDER=Custom name shown in shops; leave empty for default
 
 # Buy Shop Related
 SHOP_BUY_PRICE_PANEL_TITLE=§bSet Buy Price

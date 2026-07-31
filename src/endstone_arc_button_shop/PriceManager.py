@@ -14,9 +14,10 @@ class PriceManager:
 
     def __init__(self, plugin):
         self.plugin = plugin
-        self.official_prices = {}  # item_type -> {'sell': float, 'buy': float}
+        self.official_prices = {}  # item_type -> {'sell': float, 'buy': float, 'display_name'?, 'category'?}
         self.price_adjustments = {}  # item_type -> {'demand_sell_adjust': float, 'demand_buy_adjust': float, 'daily_adjust_percent': float, 'last_updated': str}
         self.config_path = Path(MAIN_PATH) / "official_prices.yml"
+        self.category_order = []
         self._last_daily_reset_date = None
         self._last_recovery_time = None
         self._load_config()
@@ -45,9 +46,20 @@ class PriceManager:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             self._parse_config(content)
-            self._safe_log('info', f"[ARCButtonShop] Loaded official prices: {len(self.official_prices)} items")
+            count = len(self.official_prices)
+            self._safe_log('info', f"[ARCButtonShop] Loaded official prices: {count} items from {self.config_path}")
+            if count == 0:
+                self._safe_log(
+                    'warning',
+                    f"[ARCButtonShop] official_prices.yml exists but 0 items parsed "
+                    f"(path={self.config_path}, bytes={len(content.encode('utf-8'))})"
+                )
         except Exception as e:
-            self._safe_log('error', f"[ARCButtonShop] Failed to load official_prices.yml: {e}")
+            import traceback
+            self._safe_log(
+                'error',
+                f"[ARCButtonShop] Failed to load official_prices.yml: {e}\n{traceback.format_exc()}"
+            )
             self.official_prices = {}
 
     def _create_default_config(self):
@@ -56,26 +68,33 @@ class PriceManager:
 # 物品类型: 出售价(sell)和回收价(buy)
 # sell: 玩家从系统商店购买的价格
 # buy: 玩家出售给系统商店的价格
+# display_name: 可选，商店列表中的显示名称（建议填中文）
 # 注意: buy 必须小于 sell，否则回收功能会被自动暂停
 
 prices:
   # ========== 矿物与宝石 ==========
   minecraft:diamond:
+    display_name: 钻石
     sell: 10000
     buy: 5000
   minecraft:iron_ingot:
+    display_name: 铁锭
     sell: 200
     buy: 100
   minecraft:gold_ingot:
+    display_name: 金锭
     sell: 1000
     buy: 500
   minecraft:coal:
+    display_name: 煤炭
     sell: 40
     buy: 20
   minecraft:emerald:
+    display_name: 绿宝石
     sell: 8000
     buy: 4000
   minecraft:lapis_lazuli:
+    display_name: 青金石
     sell: 300
     buy: 150
   minecraft:redstone:
@@ -658,14 +677,26 @@ prices:
     def _parse_config(self, content: str):
         """解析YAML配置（简化版，不依赖PyYAML）"""
         self.official_prices = {}
+        self.category_order = []  # 分类显示顺序（来自 yml 分区注释）
 
         lines = content.split('\n')
         current_section = None
         current_item = None
+        current_category = '其他'
 
         for line in lines:
             stripped = line.strip()
-            if not stripped or stripped.startswith('#'):
+            if not stripped:
+                continue
+
+            # 分区注释: # ========== 矿物与宝石 ==========
+            if stripped.startswith('#'):
+                if current_section == 'prices' and '====' in stripped:
+                    name = stripped.lstrip('#').replace('=', '').strip()
+                    if name:
+                        current_category = name
+                        if name not in self.category_order:
+                            self.category_order.append(name)
                 continue
 
             # 计算缩进层级
@@ -676,19 +707,18 @@ prices:
                 continue
 
             if current_section == 'prices':
-                # 物品类型行 (minecraft:diamond:)
-                if indent == 2 and stripped.endswith(':') and not ':' in stripped[:-1]:
-                    current_item = stripped[:-1].strip()
-                    if current_item not in self.official_prices:
-                        self.official_prices[current_item] = {}
-                # 物品类型行带冒号 (minecraft:diamond:  这种格式)
-                elif indent == 2 and ':' in stripped:
-                    parts = stripped.split(':', 1)
-                    if parts[0].strip().startswith('minecraft:'):
-                        current_item = parts[0].strip()
-                        if current_item not in self.official_prices:
-                            self.official_prices[current_item] = {}
-                # sell/buy 价格行
+                # 物品类型行，如 "  minecraft:diamond:"（命名空间本身含冒号）
+                if indent == 2 and ':' in stripped and not stripped.startswith(('sell:', 'buy:', 'display_name:', 'category:')):
+                    if stripped.endswith(':'):
+                        current_item = stripped[:-1].strip()
+                    else:
+                        # 兼容 "minecraft:diamond: 100" 这类行内写法
+                        current_item = stripped.rsplit(':', 1)[0].strip()
+                    if current_item and current_item not in self.official_prices:
+                        self.official_prices[current_item] = {'category': current_category}
+                    elif current_item:
+                        self.official_prices[current_item].setdefault('category', current_category)
+                # sell/buy/display_name/category 字段行
                 elif indent == 4 and current_item:
                     if stripped.startswith('sell:'):
                         try:
@@ -702,12 +732,38 @@ prices:
                             self.official_prices[current_item]['buy'] = price
                         except (ValueError, IndexError):
                             pass
+                    elif stripped.startswith('display_name:'):
+                        value = stripped.split(':', 1)[1].strip()
+                        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                            value = value[1:-1]
+                        if value:
+                            self.official_prices[current_item]['display_name'] = value
+                    elif stripped.startswith('category:'):
+                        value = stripped.split(':', 1)[1].strip()
+                        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                            value = value[1:-1]
+                        if value:
+                            self.official_prices[current_item]['category'] = value
+                            if value not in self.category_order:
+                                self.category_order.append(value)
 
-        self._safe_log('info', f"[ARCButtonShop] Parsed {len(self.official_prices)} official prices")
+        # 兜底：有物品但未进 category_order 的分类
+        for prices in self.official_prices.values():
+            cat = prices.get('category') or '其他'
+            prices['category'] = cat
+            if cat not in self.category_order:
+                self.category_order.append(cat)
+
+        self._safe_log(
+            'info',
+            f"[ARCButtonShop] Parsed {len(self.official_prices)} official prices "
+            f"in {len(self.category_order)} categories"
+        )
 
     def reload_config(self):
         """重新加载配置文件"""
         self.official_prices = {}
+        self.category_order = []
         self._load_config()
 
     # ==================== 价格查询 ====================
@@ -730,8 +786,32 @@ prices:
         """获取所有有官方定价的物品"""
         return dict(self.official_prices)
 
+    def get_category_order(self) -> list:
+        """获取分类显示顺序"""
+        return list(getattr(self, 'category_order', []) or [])
+
+    def get_items_by_category(self, category: str) -> Dict:
+        """获取某一分类下的官方定价物品"""
+        return {
+            item_type: prices
+            for item_type, prices in self.official_prices.items()
+            if (prices.get('category') or '其他') == category
+        }
+
+    def get_category_counts(self) -> Dict[str, int]:
+        """各分类物品数量"""
+        counts: Dict[str, int] = {}
+        for prices in self.official_prices.values():
+            cat = prices.get('category') or '其他'
+            counts[cat] = counts.get(cat, 0) + 1
+        return counts
+
     def get_item_display_name(self, item_type: str) -> str:
-        """获取物品显示名称（从类型名提取）"""
+        """获取物品显示名称：优先 official_prices.yml 的 display_name，否则从类型名提取"""
+        prices = self.official_prices.get(item_type) or {}
+        configured = prices.get('display_name')
+        if configured:
+            return configured
         # minecraft:diamond -> Diamond
         name = item_type.split(':')[-1] if ':' in item_type else item_type
         return name.replace('_', ' ').title()
