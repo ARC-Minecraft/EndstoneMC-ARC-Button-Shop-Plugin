@@ -606,11 +606,15 @@ class ARCButtonShopPlugin(Plugin):
                 on_click=lambda sender: self._show_my_shops_panel(sender)
             )
             
-            # OP 专属：管理全部商店
+            # OP 专属：管理全部商店 / 按命名空间批量删除
             if getattr(player, 'is_op', False):
                 main_panel.add_button(
                     self.language_manager.GetText("SHOP_MANAGE_ALL_SHOPS_BUTTON"),
                     on_click=lambda sender: self._show_all_shops_panel(sender)
+                )
+                main_panel.add_button(
+                    self.language_manager.GetText("SHOP_MANAGE_DELNS_BUTTON"),
+                    on_click=lambda sender: self._show_namespace_delete_panel(sender)
                 )
             
             # 附近商店按钮
@@ -2282,6 +2286,20 @@ class ARCButtonShopPlugin(Plugin):
             # 重置所有动态价格调整
             self.price_manager.reset_all_adjustments(self.db_manager)
             sender.send_message(self.language_manager.GetText("SHOP_MANAGE_PRICERESET_SUCCESS"))
+
+        elif command == "delns":
+            # 按命名空间批量删除商店
+            if hasattr(sender, 'send_form'):
+                if len(args) >= 2:
+                    namespace = args[1].strip()
+                    if not namespace:
+                        sender.send_message(self.language_manager.GetText("SHOP_MANAGE_DELNS_USAGE"))
+                    else:
+                        self._show_namespace_delete_confirm_panel(sender, namespace)
+                else:
+                    self._show_namespace_delete_panel(sender)
+            else:
+                sender.send_message(self.language_manager.GetText("PLAYER_ONLY_COMMAND"))
             
         else:
             sender.send_message(self.language_manager.GetText("SHOP_MANAGE_USAGE"))
@@ -2317,6 +2335,182 @@ class ARCButtonShopPlugin(Plugin):
                 sign = "+" if adj['daily_adjust_percent'] > 0 else ""
                 line += f" §7(波动{sign}{adj['daily_adjust_percent']:.1f}%)"
             sender.send_message(line)
+
+    def _get_item_namespace(self, item_type: str):
+        """从 item_type 提取命名空间；无冒号或空命名空间返回 None"""
+        if not item_type or not isinstance(item_type, str):
+            return None
+        if ':' not in item_type:
+            return None
+        namespace = item_type.split(':', 1)[0].strip()
+        return namespace or None
+
+    def _collect_shop_namespaces(self, exclude_minecraft: bool = True):
+        """统计商店命名空间及数量，默认排除 minecraft。返回 [(namespace, count), ...]"""
+        shops = self.db_manager.query_all("SELECT item_type FROM button_shops") or []
+        counts = {}
+        for shop in shops:
+            namespace = self._get_item_namespace(shop.get('item_type', ''))
+            if not namespace:
+                continue
+            if exclude_minecraft and namespace.lower() == 'minecraft':
+                continue
+            counts[namespace] = counts.get(namespace, 0) + 1
+        return sorted(counts.items(), key=lambda x: (-x[1], x[0].lower()))
+
+    def _get_shops_by_namespace(self, namespace: str):
+        """获取指定命名空间下的全部商店"""
+        if not namespace:
+            return []
+        return self.db_manager.query_all(
+            "SELECT * FROM button_shops WHERE item_type LIKE ?",
+            (f"{namespace}:%",)
+        ) or []
+
+    def _refund_shop_assets_to_owner(self, shop_data) -> None:
+        """删除前向店主退还库存/预算/已收购物品（无限商店跳过）"""
+        if self._is_shop_infinite(shop_data):
+            return
+        item_data = json.loads(shop_data['item_data'])
+        shop_type = shop_data.get('shop_type', 'sell')
+        owner_name = shop_data['owner_name']
+        owner_player = self.server.get_player(owner_name)
+        if shop_type == "sell":
+            if shop_data['stock'] > 0 and owner_player:
+                return_item = self._shop_item_transaction_payload(item_data, shop_data['stock'])
+                self.inventory_manager.give_item(owner_player, return_item)
+        else:
+            if shop_data['stock'] > 0:
+                self._change_player_money(owner_name, shop_data['stock'])
+            collected_items = []
+            if shop_data.get('collected_items'):
+                try:
+                    collected_items = json.loads(shop_data['collected_items'])
+                except Exception:
+                    collected_items = []
+            if owner_player:
+                for item in collected_items:
+                    self.inventory_manager.give_item(owner_player, item)
+
+    def _show_namespace_delete_panel(self, player):
+        """显示按命名空间批量删除面板（OP）"""
+        try:
+            if not getattr(player, 'is_op', False):
+                player.send_message(self.language_manager.GetText("NO_PERMISSION"))
+                return
+
+            namespaces = self._collect_shop_namespaces(exclude_minecraft=True)
+            if not namespaces:
+                empty_panel = ActionForm(
+                    title=self.language_manager.GetText("SHOP_MANAGE_DELNS_TITLE"),
+                    content=self.language_manager.GetText("SHOP_MANAGE_DELNS_EMPTY")
+                )
+                empty_panel.add_button(
+                    self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                    on_click=lambda sender: self._show_shop_main_panel(sender)
+                )
+                player.send_form(empty_panel)
+                return
+
+            panel = ActionForm(
+                title=self.language_manager.GetText("SHOP_MANAGE_DELNS_TITLE"),
+                content=self.language_manager.GetText("SHOP_MANAGE_DELNS_CONTENT").format(len(namespaces)).replace('\\n', '\n')
+            )
+            for namespace, count in namespaces:
+                panel.add_button(
+                    self.language_manager.GetText("SHOP_MANAGE_DELNS_BUTTON_LINE").format(namespace, count),
+                    on_click=lambda sender, ns=namespace: self._show_namespace_delete_confirm_panel(sender, ns)
+                )
+            panel.add_button(
+                self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                on_click=lambda sender: self._show_shop_main_panel(sender)
+            )
+            player.send_form(panel)
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Show namespace delete panel error: {str(e)}")
+            player.send_message(self.language_manager.GetText("SHOP_MANAGE_DELNS_PANEL_ERROR"))
+
+    def _show_namespace_delete_confirm_panel(self, player, namespace: str):
+        """确认按命名空间批量删除"""
+        try:
+            if not getattr(player, 'is_op', False):
+                player.send_message(self.language_manager.GetText("NO_PERMISSION"))
+                return
+
+            namespace = (namespace or "").strip()
+            shops = self._get_shops_by_namespace(namespace)
+            if not shops:
+                player.send_message(self.language_manager.GetText("SHOP_MANAGE_DELNS_NOT_FOUND").format(namespace))
+                if hasattr(player, 'send_form'):
+                    self._show_namespace_delete_panel(player)
+                return
+
+            confirm_panel = ActionForm(
+                title=self.language_manager.GetText("SHOP_MANAGE_DELNS_CONFIRM_TITLE"),
+                content=self.language_manager.GetText("SHOP_MANAGE_DELNS_CONFIRM_CONTENT").format(
+                    namespace, len(shops)
+                ).replace('\\n', '\n')
+            )
+            confirm_panel.add_button(
+                self.language_manager.GetText("SHOP_MANAGE_DELNS_CONFIRM_BUTTON"),
+                on_click=lambda sender, ns=namespace: self._execute_delete_shops_by_namespace(sender, ns)
+            )
+            confirm_panel.add_button(
+                self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                on_click=lambda sender: self._show_namespace_delete_panel(sender)
+            )
+            player.send_form(confirm_panel)
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Show namespace delete confirm panel error: {str(e)}")
+            player.send_message(self.language_manager.GetText("SHOP_MANAGE_DELNS_PANEL_ERROR"))
+
+    def _execute_delete_shops_by_namespace(self, player, namespace: str):
+        """执行按命名空间批量删除商店"""
+        try:
+            if not getattr(player, 'is_op', False):
+                player.send_message(self.language_manager.GetText("NO_PERMISSION"))
+                return
+
+            namespace = (namespace or "").strip()
+            shops = self._get_shops_by_namespace(namespace)
+            if not shops:
+                player.send_message(self.language_manager.GetText("SHOP_MANAGE_DELNS_NOT_FOUND").format(namespace))
+                self._show_namespace_delete_panel(player)
+                return
+
+            deleted = 0
+            for shop in shops:
+                try:
+                    self._refund_shop_assets_to_owner(shop)
+                    self.db_manager.delete(
+                        table='button_shops',
+                        where='id = ?',
+                        params=(shop['id'],)
+                    )
+                    self._update_chunk_index(shop['chunk_x'], shop['chunk_z'], shop['dimension'], -1)
+                    deleted += 1
+                except Exception as shop_err:
+                    self._safe_log(
+                        'error',
+                        f"[ARCButtonShop] Delete shop {shop.get('id')} under namespace {namespace} error: {shop_err}"
+                    )
+
+            self._safe_log(
+                'info',
+                f"[ARCButtonShop] OP {player.name} deleted {deleted} shops under namespace '{namespace}'"
+            )
+            result_form = ActionForm(
+                title=self.language_manager.GetText("SHOP_MANAGE_DELNS_TITLE"),
+                content=self.language_manager.GetText("SHOP_MANAGE_DELNS_SUCCESS").format(namespace, deleted)
+            )
+            result_form.add_button(
+                self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                on_click=lambda sender: self._show_namespace_delete_panel(sender)
+            )
+            player.send_form(result_form)
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Execute delete shops by namespace error: {str(e)}")
+            player.send_message(self.language_manager.GetText("SHOP_MANAGE_DELNS_PANEL_ERROR"))
 
     def _show_all_shops_panel(self, player):
         """显示全部商店面板（OP 管理用）"""

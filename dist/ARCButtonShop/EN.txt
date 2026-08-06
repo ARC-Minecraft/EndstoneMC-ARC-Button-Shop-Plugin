@@ -97,3 +97,17 @@ SHOP_NOT_BUTTON=§cYou are interacting with §e{0}§c, please use a button to cr
 SHOP_BUY_SUSPENDED=§c§l[Buy Suspended]§r
 SHOP_BUY_SUSPENDED_DETAIL=§cBuy price has exceeded sell price, buyback is temporarily suspended. §7It will resume automatically after price recovery.
 SHOP_BUY_SUSPENDED_MSG=§cThis item's buy price has exceeded sell price, buyback is temporarily suspended! §7Please wait for price recovery.
+
+# Namespace bulk delete
+SHOP_MANAGE_DELNS_BUTTON=§cBulk Delete by Namespace
+SHOP_MANAGE_DELNS_TITLE=§6Delete Shops by Namespace
+SHOP_MANAGE_DELNS_CONTENT=§f{0} mod namespace(s).\n§7minecraft and items without namespace are excluded.\n§eClick a namespace to confirm deletion.
+SHOP_MANAGE_DELNS_EMPTY=§cNo mod-namespace shops available for bulk delete
+SHOP_MANAGE_DELNS_BUTTON_LINE=§e{0} §7— §f{1} shop(s)
+SHOP_MANAGE_DELNS_CONFIRM_TITLE=§cConfirm Namespace Delete
+SHOP_MANAGE_DELNS_CONFIRM_CONTENT=§fAbout to delete all shops under namespace §e{0}§f: §c{1} §fshop(s).\n§7Player shops will try to refund stock/budget to owners (owners must be online for items).\n§cThis cannot be undone!
+SHOP_MANAGE_DELNS_CONFIRM_BUTTON=§cConfirm Delete
+SHOP_MANAGE_DELNS_SUCCESS=§aDeleted §f{1} §ashop(s) under namespace §e{0}
+SHOP_MANAGE_DELNS_NOT_FOUND=§cNo shops found for namespace §e{0}
+SHOP_MANAGE_DELNS_PANEL_ERROR=§cFailed to show namespace delete panel
+SHOP_MANAGE_DELNS_USAGE=§cUsage: /shopmanage delns [namespace]

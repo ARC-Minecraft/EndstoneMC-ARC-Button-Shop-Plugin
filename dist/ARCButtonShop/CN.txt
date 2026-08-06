@@ -131,10 +131,22 @@ SHOP_MANAGE_TITLE_SELL_INFINITE=（系统·出售）
 SHOP_MANAGE_TITLE_BUY=（收购/回收）
 SHOP_MANAGE_TITLE_BUY_INFINITE=（系统·收购）
 # 管理命令
-SHOP_MANAGE_USAGE=§c用法: /shopmanage <list|clear|reload|prices|pricereload|pricereset>
+SHOP_MANAGE_USAGE=§c用法: /shopmanage <list|clear|reload|prices|pricereload|pricereset|delns>
 SHOP_MANAGE_ACTIVE_COUNT=§f当前活跃商店数量: {0}
 SHOP_MANAGE_CLEAR_SUCCESS=§a所有商店数据已清除
 SHOP_MANAGE_RELOAD_SUCCESS=§a商店系统已重新加载
+SHOP_MANAGE_DELNS_BUTTON=§c按命名空间批量删除
+SHOP_MANAGE_DELNS_TITLE=§6按命名空间删除商店
+SHOP_MANAGE_DELNS_CONTENT=§f共 {0} 个模组命名空间。\n§7列表不含 minecraft，也不含无命名空间物品。\n§e点击命名空间进入删除确认。
+SHOP_MANAGE_DELNS_EMPTY=§c当前没有可批量删除的模组命名空间商店
+SHOP_MANAGE_DELNS_BUTTON_LINE=§e{0} §7— §f{1} 个商店
+SHOP_MANAGE_DELNS_CONFIRM_TITLE=§c确认删除命名空间
+SHOP_MANAGE_DELNS_CONFIRM_CONTENT=§f即将删除命名空间 §e{0} §f下的全部商店：§c{1} §f个。\n§7玩家商店会尝试退还库存/预算给店主（店主需在线才能收到物品）。\n§c此操作不可撤销！
+SHOP_MANAGE_DELNS_CONFIRM_BUTTON=§c确认删除
+SHOP_MANAGE_DELNS_SUCCESS=§a已删除命名空间 §e{0} §a下的 §f{1} §a个商店
+SHOP_MANAGE_DELNS_NOT_FOUND=§c未找到命名空间 §e{0} §c的商店
+SHOP_MANAGE_DELNS_PANEL_ERROR=§c显示命名空间删除面板时出现错误
+SHOP_MANAGE_DELNS_USAGE=§c用法: /shopmanage delns [命名空间]
 # 全部商店面板（OP）
 SHOP_ALL_SHOPS_TITLE=管理全部商店（OP）
 SHOP_NO_ACTIVE_SHOPS=服务器内暂无活跃商店
