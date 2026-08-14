@@ -687,6 +687,12 @@ class ARCButtonShopPlugin(Plugin):
                 self.language_manager.GetText("SHOP_TYPE_BUY_BUTTON"),
                 on_click=lambda sender: self._show_item_selection_panel(sender, "buy")
             )
+
+            # 以物易物商店：用物品 B 兑换物品 A
+            type_panel.add_button(
+                self.language_manager.GetText("SHOP_TYPE_BARTER_BUTTON"),
+                on_click=lambda sender: self._show_item_selection_panel(sender, "barter_give")
+            )
             
             # OP 专属：无限出售/收购；官方自动定价（统一入口 + 原出售/收购入口）
             if getattr(player, 'is_op', False):
@@ -723,28 +729,46 @@ class ARCButtonShopPlugin(Plugin):
             self._safe_log('error', f"[ARCButtonShop] Show shop type selection panel error: {str(e)}")
             player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
 
-    def _show_item_selection_panel(self, player, shop_type="sell"):
-        """显示物品选择面板"""
+    def _show_item_selection_panel(self, player, shop_type="sell", give_item=None):
+        """显示物品选择面板（含以物易物：先选给出物 A，再选收取物 B）"""
         try:
             # 获取玩家背包中的物品
             inventory_items = self.inventory_manager.get_inventory_items(player)
             
+            if shop_type == "barter_give":
+                title = self.language_manager.GetText("SHOP_BARTER_GIVE_SELECT_TITLE")
+                content = self.language_manager.GetText("SHOP_BARTER_GIVE_SELECT_CONTENT")
+                no_items_text = self.language_manager.GetText("SHOP_BARTER_NO_GIVE_ITEMS")
+                back_click = lambda sender: self._show_shop_type_selection_panel(sender)
+            elif shop_type == "barter_cost":
+                title = self.language_manager.GetText("SHOP_BARTER_COST_SELECT_TITLE")
+                content = self.language_manager.GetText("SHOP_BARTER_COST_SELECT_CONTENT").format(
+                    (give_item or {}).get('name', '?'), (give_item or {}).get('count', 0)
+                )
+                no_items_text = self.language_manager.GetText("SHOP_BARTER_NO_COST_ITEMS")
+                back_click = lambda sender: self._show_item_selection_panel(sender, "barter_give")
+            else:
+                title = self.language_manager.GetText("SHOP_ITEM_SELECT_TITLE")
+                content = self.language_manager.GetText("SHOP_ITEM_SELECT_CONTENT")
+                no_items_text = self.language_manager.GetText("SHOP_NO_ITEMS")
+                back_click = lambda sender: self._show_shop_type_selection_panel(sender)
+
             if not inventory_items:
                 no_items_panel = ActionForm(
-                    title=self.language_manager.GetText("SHOP_ITEM_SELECT_TITLE"),
-                    content=self.language_manager.GetText("SHOP_NO_ITEMS")
+                    title=title,
+                    content=no_items_text
                 )
                 no_items_panel.add_button(
                     self.language_manager.GetText("SHOP_BACK_BUTTON"),
-                    on_click=lambda sender: self._show_shop_main_panel(sender)
+                    on_click=back_click
                 )
                 player.send_form(no_items_panel)
                 return
             
             # 创建物品选择面板
             item_select_panel = ActionForm(
-                title=self.language_manager.GetText("SHOP_ITEM_SELECT_TITLE"),
-                content=self.language_manager.GetText("SHOP_ITEM_SELECT_CONTENT")
+                title=title,
+                content=content
             )
             
             # 为每个物品添加按钮
@@ -763,15 +787,26 @@ class ARCButtonShopPlugin(Plugin):
                 if item_info.get('lore'):
                     button_text += f" §d[{self.language_manager.GetText('SHOP_LORE_TAG')}]"
                 
-                item_select_panel.add_button(
-                    button_text,
-                    on_click=lambda sender, item=item_info: self._show_price_setting_panel(sender, item, shop_type)
-                )
+                if shop_type == "barter_give":
+                    item_select_panel.add_button(
+                        button_text,
+                        on_click=lambda sender, item=item_info: self._show_item_selection_panel(sender, "barter_cost", give_item=item)
+                    )
+                elif shop_type == "barter_cost":
+                    item_select_panel.add_button(
+                        button_text,
+                        on_click=lambda sender, item=item_info: self._show_barter_ratio_panel(sender, give_item, item)
+                    )
+                else:
+                    item_select_panel.add_button(
+                        button_text,
+                        on_click=lambda sender, item=item_info: self._show_price_setting_panel(sender, item, shop_type)
+                    )
             
             # 返回按钮
             item_select_panel.add_button(
                 self.language_manager.GetText("SHOP_BACK_BUTTON"),
-                on_click=lambda sender: self._show_shop_main_panel(sender)
+                on_click=back_click
             )
             
             player.send_form(item_select_panel)
@@ -779,6 +814,132 @@ class ARCButtonShopPlugin(Plugin):
         except Exception as e:
             self._safe_log('error', f"[ARCButtonShop] Show item selection panel error: {str(e)}")
             player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
+
+    def _show_barter_ratio_panel(self, player, give_item, cost_item):
+        """设置以物易物比例：交出 x 个 A，收取 y 个 B"""
+        try:
+            if not give_item or not cost_item:
+                player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
+                return
+
+            info_text = self.language_manager.GetText("SHOP_BARTER_RATIO_INFO").format(
+                give_item.get('name', '?'), give_item.get('count', 0),
+                cost_item.get('name', '?'), cost_item.get('count', 0)
+            )
+            controls = [
+                Label(text=info_text),
+                TextInput(
+                    label=self.language_manager.GetText("SHOP_BARTER_GIVE_AMOUNT_LABEL"),
+                    placeholder=self.language_manager.GetText("SHOP_BARTER_GIVE_AMOUNT_PLACEHOLDER"),
+                    default_value="1"
+                ),
+                TextInput(
+                    label=self.language_manager.GetText("SHOP_BARTER_COST_AMOUNT_LABEL"),
+                    placeholder=self.language_manager.GetText("SHOP_BARTER_COST_AMOUNT_PLACEHOLDER"),
+                    default_value="1"
+                ),
+                TextInput(
+                    label=self.language_manager.GetText("SHOP_DISPLAY_NAME_LABEL"),
+                    placeholder=self.language_manager.GetText("SHOP_DISPLAY_NAME_PLACEHOLDER"),
+                    default_value=str(give_item.get('name', '') or '')
+                ),
+            ]
+
+            def process_barter_setup(sender, json_str: str):
+                try:
+                    data = json.loads(json_str)
+                    give_str = data[1] if len(data) > 1 else ''
+                    cost_str = data[2] if len(data) > 2 else ''
+                    custom_name = str(data[3] if len(data) > 3 else '').strip()
+                    try:
+                        give_amount = int(float(give_str))
+                        cost_amount = int(float(cost_str))
+                        if give_amount <= 0 or cost_amount <= 0:
+                            raise ValueError("Amounts must be positive")
+                    except ValueError:
+                        result_form = ActionForm(
+                            title=self.language_manager.GetText("SHOP_RESULT_TITLE"),
+                            content=self.language_manager.GetText("SHOP_BARTER_INVALID_RATIO")
+                        )
+                        result_form.add_button(
+                            self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                            on_click=lambda s: self._show_barter_ratio_panel(s, give_item, cost_item)
+                        )
+                        sender.send_form(result_form)
+                        return
+
+                    shop_item_info = dict(give_item)
+                    shop_item_info['name'] = custom_name if custom_name else give_item.get('name', give_item.get('type', 'Unknown'))
+                    cost_item_info = dict(cost_item)
+                    # 创建时只上架给出物 A；比例与收取物写入 item_data
+                    shop_item_info['barter_give_amount'] = give_amount
+                    shop_item_info['barter_cost_amount'] = cost_amount
+                    shop_item_info['barter_cost_item'] = {
+                        'type': cost_item_info.get('type'),
+                        'name': cost_item_info.get('name', cost_item_info.get('type', 'Unknown')),
+                        'data': cost_item_info.get('data', 0),
+                        'enchants': cost_item_info.get('enchants') or {},
+                        'lore': cost_item_info.get('lore') or [],
+                    }
+                    if cost_item_info.get('nbt_b64'):
+                        shop_item_info['barter_cost_item']['nbt_b64'] = cost_item_info['nbt_b64']
+
+                    self.setting_shop_player[sender.name] = {
+                        'item_info': shop_item_info,
+                        'unit_price': 0,
+                        'shop_type': 'barter',
+                        'budget': 0,
+                        'is_infinite': False,
+                        'create_time': datetime.datetime.now()
+                    }
+
+                    instruction_content = self.language_manager.GetText("SHOP_BARTER_SETUP_INSTRUCTION").format(
+                        shop_item_info['name'], give_amount,
+                        shop_item_info['barter_cost_item']['name'], cost_amount,
+                        shop_item_info.get('count', 0)
+                    ).replace('\\n', '\n')
+                    instruction_form = ActionForm(
+                        title=self.language_manager.GetText("SHOP_SETUP_TITLE"),
+                        content=instruction_content,
+                        on_close=lambda s: None
+                    )
+                    sender.send_form(instruction_form)
+                except Exception as e:
+                    self._safe_log('error', f"[ARCButtonShop] Process barter setup error: {str(e)}")
+                    error_form = ActionForm(
+                        title=self.language_manager.GetText("SHOP_RESULT_TITLE"),
+                        content=self.language_manager.GetText("SHOP_PANEL_ERROR")
+                    )
+                    error_form.add_button(
+                        self.language_manager.GetText("SHOP_BACK_BUTTON"),
+                        on_click=lambda s: self._show_barter_ratio_panel(s, give_item, cost_item)
+                    )
+                    sender.send_form(error_form)
+
+            ratio_panel = ModalForm(
+                title=self.language_manager.GetText("SHOP_BARTER_RATIO_TITLE"),
+                controls=controls,
+                on_submit=process_barter_setup
+            )
+            player.send_form(ratio_panel)
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Show barter ratio panel error: {str(e)}")
+            player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
+
+    def _get_barter_trade_config(self, item_data: dict):
+        """从商店 item_data 解析以物易物配置：给出 x 个 A，收取 y 个 B"""
+        give_amount = max(1, int(item_data.get('barter_give_amount', 1) or 1))
+        cost_amount = max(1, int(item_data.get('barter_cost_amount', 1) or 1))
+        cost_item = item_data.get('barter_cost_item') or {}
+        return give_amount, cost_amount, cost_item
+
+    def _format_barter_ratio_text(self, item_data: dict) -> str:
+        """格式化以物易物比例展示文案"""
+        give_amount, cost_amount, cost_item = self._get_barter_trade_config(item_data)
+        return self.language_manager.GetText("SHOP_BARTER_RATIO_DISPLAY").format(
+            give_amount, item_data.get('name', '?'),
+            cost_amount, cost_item.get('name', '?')
+        )
 
     def _show_price_setting_panel(self, player, item_info, shop_type="sell"):
         """显示价格设置面板（支持 sell/buy/sell_infinite/buy_infinite）"""
@@ -1350,11 +1511,17 @@ class ARCButtonShopPlugin(Plugin):
             player.send_message(self.language_manager.GetText("SHOP_PANEL_ERROR"))
 
     def _get_shop_display_price(self, shop_data) -> str:
-        """获取商店的显示价格（官方定价模式返回动态价格，手动定价返回unit_price）"""
+        """获取商店的显示价格（官方定价模式返回动态价格，手动定价返回unit_price；以物易物返回比例）"""
+        shop_type = shop_data.get('shop_type', 'sell')
+        if shop_type == 'barter':
+            try:
+                item_data = json.loads(shop_data.get('item_data') or '{}')
+                return self._format_barter_ratio_text(item_data)
+            except Exception:
+                return self.language_manager.GetText("SHOP_TYPE_TAG_BARTER")
         pricing_mode = shop_data.get('pricing_mode', 'manual')
         if pricing_mode == 'official':
             item_type = shop_data.get('item_type', '')
-            shop_type = shop_data.get('shop_type', 'sell')
             discount_percent = float(shop_data.get('discount_percent', 0) or 0)
             if shop_type == 'both':
                 sell_price = self.price_manager.calculate_final_price(item_type, 'sell', discount_percent)
@@ -1402,6 +1569,10 @@ class ARCButtonShopPlugin(Plugin):
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
         pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if shop_type == 'barter':
+            if is_infinite:
+                return self.language_manager.GetText("SHOP_TYPE_MANAGE_BARTER_INFINITE")
+            return self.language_manager.GetText("SHOP_TYPE_MANAGE_BARTER")
         if pricing_mode == 'official':
             if shop_type == 'both':
                 return self.language_manager.GetText("SHOP_TYPE_MANAGE_BOTH_OFFICIAL")
@@ -1417,10 +1588,12 @@ class ARCButtonShopPlugin(Plugin):
         return self.language_manager.GetText("SHOP_TYPE_MANAGE_BUY")
 
     def _get_shop_type_short_tag(self, shop_data) -> str:
-        """列表按钮用短标签：出售 / 收购"""
+        """列表按钮用短标签：出售 / 收购 / 易物"""
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
         pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if shop_type == 'barter':
+            return self.language_manager.GetText("SHOP_TYPE_TAG_BARTER_INFINITE") if is_infinite else self.language_manager.GetText("SHOP_TYPE_TAG_BARTER")
         if pricing_mode == 'official':
             if shop_type == 'both':
                 return self.language_manager.GetText("SHOP_TYPE_TAG_BOTH_OFFICIAL")
@@ -1436,6 +1609,9 @@ class ARCButtonShopPlugin(Plugin):
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
         pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if shop_type == 'barter':
+            sys_tag = self.language_manager.GetText("SHOP_TYPE_PLAIN_SYSTEM_TAG") if is_infinite else ""
+            return self.language_manager.GetText("SHOP_TYPE_PLAIN_BARTER").format(sys_tag)
         if pricing_mode == 'official':
             official_tag = self.language_manager.GetText("SHOP_TYPE_PLAIN_OFFICIAL_TAG")
             if shop_type == 'both':
@@ -1453,6 +1629,8 @@ class ARCButtonShopPlugin(Plugin):
         shop_type = shop_data.get('shop_type', 'sell')
         is_infinite = self._is_shop_infinite(shop_data)
         pricing_mode = shop_data.get('pricing_mode', 'manual')
+        if shop_type == 'barter':
+            return self.language_manager.GetText("SHOP_MANAGE_TITLE_BARTER_INFINITE") if is_infinite else self.language_manager.GetText("SHOP_MANAGE_TITLE_BARTER")
         if pricing_mode == 'official':
             if shop_type == 'both':
                 return self.language_manager.GetText("SHOP_MANAGE_TITLE_BOTH_OFFICIAL")
@@ -1489,7 +1667,17 @@ class ARCButtonShopPlugin(Plugin):
             shop_info += self.language_manager.GetText("SHOP_DETAIL_TYPE").format(self._get_shop_type_plain_headline(shop_data)) + "\n"
             shop_info += self._get_shop_type_manage_line(shop_data) + "\n"
             shop_info += self.language_manager.GetText("SHOP_DETAIL_ITEM").format(item_data.get('name', 'Unknown')) + "\n"
-            if shop_type == "both":
+            if shop_type == "barter":
+                give_amount, cost_amount, cost_item = self._get_barter_trade_config(item_data)
+                shop_info += self.language_manager.GetText("SHOP_DETAIL_BARTER_COST_ITEM").format(cost_item.get('name', '?')) + "\n"
+                shop_info += self.language_manager.GetText("SHOP_DETAIL_BARTER_RATIO").format(
+                    give_amount, item_data.get('name', '?'), cost_amount, cost_item.get('name', '?')
+                ) + "\n"
+                if is_infinite:
+                    shop_info += self.language_manager.GetText("SHOP_DETAIL_STOCK").format(self.language_manager.GetText("SHOP_DETAIL_INFINITE_STOCK")) + "\n"
+                else:
+                    shop_info += self.language_manager.GetText("SHOP_DETAIL_STOCK").format(shop_data['stock']) + "\n"
+            elif shop_type == "both":
                 if is_infinite:
                     shop_info += self.language_manager.GetText("SHOP_DETAIL_STOCK").format(self.language_manager.GetText("SHOP_DETAIL_INFINITE_STOCK")) + "\n"
                     shop_info += self.language_manager.GetText("SHOP_DETAIL_BUDGET").format(self.language_manager.GetText("SHOP_DETAIL_INFINITE_BUDGET")) + "\n"
@@ -1499,7 +1687,8 @@ class ARCButtonShopPlugin(Plugin):
                 shop_info += (self.language_manager.GetText("SHOP_DETAIL_STOCK").format(self.language_manager.GetText("SHOP_DETAIL_INFINITE_STOCK")) + "\n") if shop_type == "sell" else (self.language_manager.GetText("SHOP_DETAIL_BUDGET").format(self.language_manager.GetText("SHOP_DETAIL_INFINITE_BUDGET")) + "\n")
             else:
                 shop_info += (self.language_manager.GetText("SHOP_DETAIL_STOCK").format(shop_data['stock']) + "\n") if shop_type == "sell" else (self.language_manager.GetText("SHOP_DETAIL_BUDGET").format(shop_data['stock']) + "\n")
-            shop_info += self.language_manager.GetText("SHOP_DETAIL_PRICE").format(self._get_shop_display_price(shop_data)) + "\n"
+            if shop_type != "barter":
+                shop_info += self.language_manager.GetText("SHOP_DETAIL_PRICE").format(self._get_shop_display_price(shop_data)) + "\n"
             
             # 官方定价模式：显示动态价格信息
             pricing_mode = shop_data.get('pricing_mode', 'manual')
@@ -1558,7 +1747,11 @@ class ARCButtonShopPlugin(Plugin):
             # 玩家商店仍禁止店主买自己的店。
             is_owner = self._is_player_shop_owner(player, shop_data)
             is_op = getattr(player, 'is_op', False)
-            can_trade = (is_infinite or shop_data['stock'] > 0)
+            if shop_type == "barter":
+                give_amount_for_trade, _, _ = self._get_barter_trade_config(item_data)
+                can_trade = is_infinite or int(shop_data['stock']) >= give_amount_for_trade
+            else:
+                can_trade = (is_infinite or shop_data['stock'] > 0)
             show_trade = can_trade and (is_infinite or not is_owner)
             if show_trade:
                 if shop_type == "both":
@@ -1570,6 +1763,11 @@ class ARCButtonShopPlugin(Plugin):
                     detail_panel.add_button(
                         self.language_manager.GetText("SHOP_BOTH_SELL_TO_SHOP_BUTTON"),
                         on_click=lambda sender: self._show_purchase_panel(sender, self._with_trade_direction(shop_data, 'buy'))
+                    )
+                elif shop_type == "barter":
+                    detail_panel.add_button(
+                        self.language_manager.GetText("SHOP_BARTER_TRADE_BUTTON"),
+                        on_click=lambda sender: self._show_purchase_panel(sender, shop_data)
                     )
                 elif shop_type == "sell":
                     # 出售商店 - 显示购买按钮
@@ -1612,22 +1810,36 @@ class ARCButtonShopPlugin(Plugin):
             
             # 官方定价模式：使用动态计算价格
             pricing_mode = shop_data.get('pricing_mode', 'manual')
+            discount_percent = 0.0
+            item_type = shop_data.get('item_type', '')
             if pricing_mode == 'official':
                 discount_percent = shop_data.get('discount_percent', 0.0)
-                item_type = shop_data.get('item_type', '')
                 display_price = self.price_manager.calculate_final_price(item_type, shop_type, discount_percent)
                 if display_price is None:
                     display_price = shop_data['unit_price']
             else:
                 display_price = shop_data['unit_price']
-            
-            if shop_type == "sell":
+
+            give_amount = cost_amount = 1
+            cost_item = {}
+            max_lots = self.UNLIMITED_STOCK
+            if shop_type == "barter":
+                give_amount, cost_amount, cost_item = self._get_barter_trade_config(item_data)
+                max_lots = self.UNLIMITED_STOCK if is_infinite else max(0, int(shop_data['stock']) // give_amount)
+                purchase_info = type_headline + self.language_manager.GetText("SHOP_PURCHASE_BARTER_INFO").format(
+                    item_data.get('name', 'Unknown'),
+                    self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock']),
+                    give_amount, item_data.get('name', '?'),
+                    cost_amount, cost_item.get('name', '?'),
+                    max_lots if not is_infinite else self.language_manager.GetText("SHOP_STOCK_INFINITE")
+                ) + "\n"
+            elif shop_type == "sell":
                 purchase_info = type_headline + self.language_manager.GetText("SHOP_PURCHASE_SELL_INFO").format(item_data.get('name', 'Unknown'), self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock']), display_price) + "\n"
             else:
                 purchase_info = type_headline + self.language_manager.GetText("SHOP_PURCHASE_BUY_INFO").format(item_data.get('name', 'Unknown'), self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock']), display_price) + "\n"
             
             # 官方定价模式：显示价格组成信息
-            if pricing_mode == 'official':
+            if pricing_mode == 'official' and shop_type != "barter":
                 adj = self.price_manager.get_price_adjustment(item_type)
                 base_price = self.price_manager.get_base_price(item_type, shop_type)
                 if base_price is not None and display_price != base_price:
@@ -1654,23 +1866,31 @@ class ARCButtonShopPlugin(Plugin):
                 for lore_line in item_data['lore']:
                     purchase_info += "\n  " + lore_line
             
-            # 添加税收信息
-            tax_rate = self._get_tax_rate()
-            if tax_rate > 0:
-                tax_percent = int(tax_rate * 100)
-                purchase_info += "\n\n" + self.language_manager.GetText("SHOP_TAX_RATE_DISPLAY").format(tax_percent)
+            # 添加税收信息（以物易物不收钱，不显示税金）
+            if shop_type != "barter":
+                tax_rate = self._get_tax_rate()
+                if tax_rate > 0:
+                    tax_percent = int(tax_rate * 100)
+                    purchase_info += "\n\n" + self.language_manager.GetText("SHOP_TAX_RATE_DISPLAY").format(tax_percent)
             
             item_label = Label(text=purchase_info)
             
-            max_quantity = self.UNLIMITED_STOCK if is_infinite else shop_data['stock']
-            quantity_placeholder = self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock'])
-            if shop_type == "sell":
+            if shop_type == "barter":
+                quantity_placeholder = self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(max_lots)
+                quantity_input = TextInput(
+                    label=self.language_manager.GetText("SHOP_BARTER_LOTS_LABEL"),
+                    placeholder=quantity_placeholder,
+                    default_value="1"
+                )
+            elif shop_type == "sell":
+                quantity_placeholder = self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock'])
                 quantity_input = TextInput(
                     label=self.language_manager.GetText("SHOP_QUANTITY_LABEL"),
                     placeholder=quantity_placeholder,
                     default_value="1"
                 )
             else:
+                quantity_placeholder = self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else str(shop_data['stock'])
                 quantity_input = TextInput(
                     label=self.language_manager.GetText("SHOP_SELL_QUANTITY_LABEL"),
                     placeholder=quantity_placeholder,
@@ -1685,10 +1905,14 @@ class ARCButtonShopPlugin(Plugin):
                         quantity = int(quantity_str)
                         if quantity <= 0:
                             raise ValueError("Quantity must be positive")
-                        if not is_infinite and quantity > shop_data['stock']:
-                            raise ValueError("Not enough stock")
-                        if shop_type == "buy" and not is_infinite and quantity * display_price > shop_data['stock']:
-                            raise ValueError("Not enough budget")
+                        if shop_type == "barter":
+                            if not is_infinite and quantity > max_lots:
+                                raise ValueError("Not enough stock for lots")
+                        else:
+                            if not is_infinite and quantity > shop_data['stock']:
+                                raise ValueError("Not enough stock")
+                            if shop_type == "buy" and not is_infinite and quantity * display_price > shop_data['stock']:
+                                raise ValueError("Not enough budget")
                     except ValueError as e:
                         result_form = ActionForm(
                             title=self.language_manager.GetText("SHOP_RESULT_TITLE"),
@@ -1721,7 +1945,9 @@ class ARCButtonShopPlugin(Plugin):
                     sender.send_form(error_form)
             
             # 根据商店类型选择标题，并附带类型后缀（与「管理商店」一致）
-            if shop_type == "sell":
+            if shop_type == "barter":
+                panel_title = self.language_manager.GetText("SHOP_BARTER_TRADE_TITLE")
+            elif shop_type == "sell":
                 panel_title = self.language_manager.GetText("SHOP_PURCHASE_TITLE")
             else:
                 panel_title = self.language_manager.GetText("SHOP_SELL_TITLE")
@@ -1761,8 +1987,11 @@ class ARCButtonShopPlugin(Plugin):
                 player.send_message(self.language_manager.GetText("SHOP_ALREADY_EXISTS"))
                 return
             
-            if shop_type == "sell":
-                if not is_infinite and not self.inventory_manager.has_item(player, item_info):
+            if shop_type in ("sell", "barter"):
+                # 出售/以物易物：创建时从背包扣除给出物 A
+                create_item = dict(item_info)
+                create_item.pop('barter_cost_item', None)
+                if not is_infinite and not self.inventory_manager.has_item(player, create_item):
                     player.send_message(self.language_manager.GetText("SHOP_ITEM_NOT_FOUND"))
                     del self.setting_shop_player[player.name]
                     return
@@ -1780,7 +2009,7 @@ class ARCButtonShopPlugin(Plugin):
             if is_infinite:
                 quantity = self.UNLIMITED_STOCK
                 stock = self.UNLIMITED_STOCK
-            elif shop_type == "sell":
+            elif shop_type in ("sell", "barter"):
                 quantity = item_info['count']
                 stock = item_info['count']
             else:
@@ -1810,10 +2039,12 @@ class ARCButtonShopPlugin(Plugin):
             }
             
             operation_success = False
+            remove_payload = dict(item_info)
+            remove_payload.pop('barter_cost_item', None)
             if is_infinite:
                 operation_success = True  # 无限商店不扣物品/预算
-            elif shop_type == "sell":
-                operation_success = self.inventory_manager.remove_item(player, item_info)
+            elif shop_type in ("sell", "barter"):
+                operation_success = self.inventory_manager.remove_item(player, remove_payload)
                 if not operation_success:
                     player.send_message(self.language_manager.GetText("SHOP_ITEM_REMOVE_FAILED"))
             else:
@@ -1834,6 +2065,13 @@ class ARCButtonShopPlugin(Plugin):
                             player.send_message(self.language_manager.GetText("SHOP_OFFICIAL_CREATED_SUCCESS").format(item_info['name'], unit_price, discount_percent))
                     elif is_infinite:
                         player.send_message(self.language_manager.GetText("SHOP_INFINITE_CREATED_SUCCESS").format(item_info['name'], unit_price))
+                    elif shop_type == "barter":
+                        give_amount, cost_amount, cost_item = self._get_barter_trade_config(item_info)
+                        player.send_message(self.language_manager.GetText("SHOP_BARTER_CREATED_SUCCESS").format(
+                            item_info['name'], item_info['count'],
+                            give_amount, item_info['name'],
+                            cost_amount, cost_item.get('name', '?')
+                        ))
                     elif shop_type == "sell":
                         player.send_message(self.language_manager.GetText("SHOP_CREATED_SUCCESS").format(
                             item_info['name'], item_info['count'], unit_price
@@ -1846,8 +2084,8 @@ class ARCButtonShopPlugin(Plugin):
                 else:
                     # 如果创建失败，根据商店类型进行回滚（无限商店未扣物品/预算，无需回滚）
                     if not is_infinite:
-                        if shop_type == "sell":
-                            self.inventory_manager.give_item(player, item_info)
+                        if shop_type in ("sell", "barter"):
+                            self.inventory_manager.give_item(player, remove_payload)
                         else:
                             self._change_player_money(player.name, int(budget))
                     player.send_message(self.language_manager.GetText("SHOP_CREATE_FAILED"))
@@ -1864,9 +2102,19 @@ class ARCButtonShopPlugin(Plugin):
                 del self.setting_shop_player[player.name]
 
     def _execute_purchase(self, player, shop_data, quantity):
-        """执行购买操作（支持出售商店、收购商店和税收）"""
+        """执行购买操作（支持出售商店、收购商店、以物易物和税收）"""
         try:
             shop_type = shop_data.get('shop_type', 'sell')
+
+            # 检查当前商店状态
+            current_shop = self._get_shop_by_id(shop_data['id'])
+            if not current_shop or not current_shop['is_active']:
+                return False, self.language_manager.GetText("SHOP_NOT_AVAILABLE")
+
+            # 以物易物不依赖经济插件
+            if shop_type == "barter":
+                return self._execute_barter_trade(player, current_shop, quantity)
+
             pricing_mode = shop_data.get('pricing_mode', 'manual')
             
             # 官方定价模式：使用动态计算价格
@@ -1890,11 +2138,6 @@ class ARCButtonShopPlugin(Plugin):
             if not self.economy_plugin:
                 return False, self.language_manager.GetText("SHOP_CORE_PLUGIN_NOT_FOUND")
             
-            # 检查当前商店状态
-            current_shop = self._get_shop_by_id(shop_data['id'])
-            if not current_shop or not current_shop['is_active']:
-                return False, self.language_manager.GetText("SHOP_NOT_AVAILABLE")
-            
             # 官方定价模式：记录交易量并更新需求定价
             if pricing_mode == 'official':
                 trade_amount = base_price  # base_price已经是总价（单价×数量后的总价含税前）
@@ -1907,6 +2150,105 @@ class ARCButtonShopPlugin(Plugin):
                 return self._execute_buy_shop_purchase(player, current_shop, quantity, base_price, tax_amount, total_price, unit_price)
         except Exception as e:
             self._safe_log('error', f"[ARCButtonShop] Execute purchase error: {str(e)}")
+            return False, self.language_manager.GetText("SHOP_PURCHASE_ERROR")
+
+    def _execute_barter_trade(self, player, shop_data, lots):
+        """执行以物易物：玩家交出 lots*Y 个 B，获得 lots*X 个 A"""
+        try:
+            item_data = json.loads(shop_data['item_data'])
+            give_amount, cost_amount, cost_item = self._get_barter_trade_config(item_data)
+            if not cost_item.get('type'):
+                return False, self.language_manager.GetText("SHOP_BARTER_CONFIG_ERROR")
+
+            lots = int(lots)
+            if lots <= 0:
+                return False, self.language_manager.GetText("SHOP_INVALID_QUANTITY")
+
+            give_total = lots * give_amount
+            cost_total = lots * cost_amount
+            is_infinite = self._is_shop_infinite(shop_data)
+
+            if not is_infinite and shop_data['stock'] < give_total:
+                return False, self.language_manager.GetText("SHOP_INSUFFICIENT_STOCK")
+
+            cost_payload = self._shop_item_transaction_payload(cost_item, cost_total)
+            if not self.inventory_manager.has_item(player, cost_payload):
+                return False, self.language_manager.GetText("SHOP_BARTER_NOT_ENOUGH_COST").format(
+                    cost_total, cost_item.get('name', '?')
+                )
+
+            if not self.inventory_manager.remove_item(player, cost_payload):
+                return False, self.language_manager.GetText("SHOP_ITEM_REMOVE_FAILED")
+
+            give_payload = self._shop_item_transaction_payload(item_data, give_total)
+            given_qty = self.inventory_manager.give_item_count(player, give_payload)
+            if given_qty < give_total:
+                # 发货不足：收回已发部分并退还全部代价物
+                if given_qty > 0:
+                    try:
+                        self.inventory_manager.remove_item(
+                            player, self._shop_item_transaction_payload(item_data, given_qty)
+                        )
+                    except Exception:
+                        pass
+                self.inventory_manager.give_item(player, cost_payload)
+                return False, self.language_manager.GetText("SHOP_INVENTORY_FULL")
+
+            update_data = {
+                'last_purchase_time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            if not is_infinite:
+                new_stock = shop_data['stock'] - give_total
+                collected_items = []
+                if shop_data.get('collected_items'):
+                    try:
+                        collected_items = json.loads(shop_data['collected_items'])
+                    except Exception:
+                        collected_items = []
+                collected_item = {
+                    'type': cost_item['type'],
+                    'name': cost_item.get('name', cost_item['type']),
+                    'count': cost_total,
+                    'data': cost_item.get('data', 0),
+                    'enchants': cost_item.get('enchants') or {},
+                    'lore': cost_item.get('lore') or [],
+                    'collect_time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                if cost_item.get('nbt_b64'):
+                    collected_item['nbt_b64'] = cost_item['nbt_b64']
+                collected_items.append(collected_item)
+                update_data['stock'] = new_stock
+                update_data['collected_items'] = json.dumps(collected_items)
+
+            self.db_manager.update(
+                table='button_shops',
+                data=update_data,
+                where='id = ?',
+                params=(shop_data['id'],)
+            )
+
+            self._record_transaction(shop_data['id'], player, lots, 0, 0, 0)
+
+            if not is_infinite:
+                try:
+                    owner_player = self.server.get_player(shop_data['owner_name'])
+                    if owner_player:
+                        owner_player.send_message(
+                            self.language_manager.GetText("SHOP_BARTER_NOTIFICATION").format(
+                                player.name,
+                                cost_total, cost_item.get('name', '?'),
+                                give_total, item_data.get('name', '?')
+                            )
+                        )
+                except Exception as e:
+                    self._safe_log('error', f"[ARCButtonShop] Notify barter owner error: {str(e)}")
+
+            return True, self.language_manager.GetText("SHOP_BARTER_SUCCESS").format(
+                cost_total, cost_item.get('name', '?'),
+                give_total, item_data.get('name', '?')
+            )
+        except Exception as e:
+            self._safe_log('error', f"[ARCButtonShop] Execute barter trade error: {str(e)}")
             return False, self.language_manager.GetText("SHOP_PURCHASE_ERROR")
 
     def _execute_sell_shop_purchase(self, player, shop_data, quantity, base_price, tax_amount, total_price, unit_price=None):
@@ -2408,10 +2750,19 @@ class ARCButtonShopPlugin(Plugin):
         shop_type = shop_data.get('shop_type', 'sell')
         owner_name = shop_data['owner_name']
         owner_player = self.server.get_player(owner_name)
-        if shop_type == "sell":
+        if shop_type in ("sell", "barter"):
             if shop_data['stock'] > 0 and owner_player:
                 return_item = self._shop_item_transaction_payload(item_data, shop_data['stock'])
                 self.inventory_manager.give_item(owner_player, return_item)
+            if shop_type == "barter" and owner_player:
+                collected_items = []
+                if shop_data.get('collected_items'):
+                    try:
+                        collected_items = json.loads(shop_data['collected_items'])
+                    except Exception:
+                        collected_items = []
+                for item in collected_items:
+                    self.inventory_manager.give_item(owner_player, item)
         else:
             if shop_data['stock'] > 0:
                 self._change_player_money(owner_name, shop_data['stock'])
@@ -2574,7 +2925,17 @@ class ARCButtonShopPlugin(Plugin):
                 is_infinite = self._is_shop_infinite(shop)
                 stock_text = self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else shop['stock']
                 display_price = self._get_shop_display_price(shop)
-                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self._get_shop_owner_display(shop)} - {self.language_manager.GetText('SHOP_STOCK_LABEL') if shop.get('shop_type', 'sell') == 'sell' else self.language_manager.GetText('SHOP_BUDGET_LABEL')}:{stock_text} - {self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}:{display_price}"
+                stock_label = (
+                    self.language_manager.GetText('SHOP_STOCK_LABEL')
+                    if shop.get('shop_type', 'sell') in ('sell', 'barter')
+                    else self.language_manager.GetText('SHOP_BUDGET_LABEL')
+                )
+                price_label = (
+                    self.language_manager.GetText('SHOP_BARTER_RATIO_LABEL')
+                    if shop.get('shop_type', 'sell') == 'barter'
+                    else self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')
+                )
+                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self._get_shop_owner_display(shop)} - {stock_label}:{stock_text} - {price_label}:{display_price}"
                 panel.add_button(
                     button_text,
                     on_click=lambda sender, s=shop: self._show_shop_manage_panel(sender, s, from_all_shops=True)
@@ -2618,7 +2979,12 @@ class ARCButtonShopPlugin(Plugin):
                 item_data = json.loads(shop['item_data'])
                 stock_text = self.language_manager.GetText("SHOP_STOCK_INFINITE") if self._is_shop_infinite(shop) else shop['stock']
                 display_price = self._get_shop_display_price(shop)
-                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self.language_manager.GetText('SHOP_STOCK_LABEL')}:{stock_text} - {self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}:{display_price}"
+                price_label = (
+                    self.language_manager.GetText('SHOP_BARTER_RATIO_LABEL')
+                    if shop.get('shop_type', 'sell') == 'barter'
+                    else self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')
+                )
+                button_text = f"{self._get_shop_type_short_tag(shop)} {item_data['name']} - {self.language_manager.GetText('SHOP_STOCK_LABEL')}:{stock_text} - {price_label}:{display_price}"
                 if item_data.get('enchants'):
                     button_text += f" §b[{self.language_manager.GetText('SHOP_ENCHANT_TAG')}]"
                 if item_data.get('lore'):
@@ -2714,16 +3080,23 @@ class ARCButtonShopPlugin(Plugin):
             is_infinite = self._is_shop_infinite(shop_data)
             stock_text = self.language_manager.GetText("SHOP_STOCK_INFINITE") if is_infinite else shop_data['stock']
             
-            price_label = self.language_manager.GetText("SHOP_PRICE_SELL_LABEL") if shop_type == "sell" else self.language_manager.GetText("SHOP_PRICE_BUY_LABEL")
-            if shop_type == "both":
+            if shop_type == "barter":
+                price_label = self.language_manager.GetText("SHOP_BARTER_RATIO_LABEL")
+            elif shop_type == "both":
                 price_label = self.language_manager.GetText("SHOP_PRICE_BOTH_LABEL")
+            elif shop_type == "sell":
+                price_label = self.language_manager.GetText("SHOP_PRICE_SELL_LABEL")
+            else:
+                price_label = self.language_manager.GetText("SHOP_PRICE_BUY_LABEL")
             is_op_player = getattr(player, 'is_op', False)
             op_hint = self.language_manager.GetText("SHOP_OP_MANAGE_HINT") if is_op_player else ""
             # 无 § 的短标题置顶，避免正文里只注意到物品与单价
             if shop_type == "both":
                 stock_line = f"{self.language_manager.GetText('SHOP_STOCK_LABEL')}: {stock_text}\n{self.language_manager.GetText('SHOP_BUDGET_BALANCE_LABEL')}: {stock_text}"
+            elif shop_type in ("sell", "barter"):
+                stock_line = f"{self.language_manager.GetText('SHOP_STOCK_LABEL')}: {stock_text}"
             else:
-                stock_line = f"{self.language_manager.GetText('SHOP_STOCK_LABEL') if shop_type == 'sell' else self.language_manager.GetText('SHOP_BUDGET_BALANCE_LABEL')}: {stock_text}"
+                stock_line = f"{self.language_manager.GetText('SHOP_BUDGET_BALANCE_LABEL')}: {stock_text}"
             manage_info = f"""{op_hint}{self.language_manager.GetText('SHOP_MANAGE_INFO_LABEL')}
 ————————————
 {self._get_shop_type_plain_headline(shop_data)}
@@ -2748,8 +3121,8 @@ class ARCButtonShopPlugin(Plugin):
                 for lore_line in item_data['lore']:
                     manage_info += f"\n  {lore_line}"
             
-            # 收购商店显示收集的物品信息
-            if shop_type == "buy":
+            # 收购/以物易物商店显示收集的物品信息
+            if shop_type in ("buy", "barter"):
                 collected_items = []
                 if shop_data.get('collected_items'):
                     try:
@@ -2768,13 +3141,13 @@ class ARCButtonShopPlugin(Plugin):
             
             # 根据商店类型显示不同的按钮（无限商店不显示补充库存/收取物品）
             if not is_infinite:
-                if shop_type == "sell":
+                if shop_type in ("sell", "barter"):
                     # 任意时刻可补货（未售罄也可），数量由玩家自行填写
                     manage_panel.add_button(
                         self.language_manager.GetText("SHOP_RESTOCK_BUTTON"),
                         on_click=lambda sender: self._show_restock_panel(sender, shop_data, from_all_shops)
                     )
-                else:
+                if shop_type in ("buy", "barter"):
                     collected_items = []
                     if shop_data.get('collected_items'):
                         try:
@@ -2975,7 +3348,7 @@ class ARCButtonShopPlugin(Plugin):
             stock_display = self.language_manager.GetText('SHOP_STOCK_INFINITE') if is_infinite else shop_data['stock']
             stock_line = (
                 f"{self.language_manager.GetText('SHOP_REMAINING_STOCK')}: {stock_display}"
-                if shop_type == 'sell'
+                if shop_type in ('sell', 'barter')
                 else f"{self.language_manager.GetText('SHOP_REMAINING_BUDGET')}: {stock_display}"
             )
             delete_title = f"{self.language_manager.GetText('SHOP_DELETE_SHOP_TITLE')}{self._get_shop_manage_title_suffix(shop_data)}"
@@ -3000,6 +3373,8 @@ class ARCButtonShopPlugin(Plugin):
             
             if is_infinite:
                 confirm_content += f"\n\n{self.language_manager.GetText('SHOP_DELETE_INFINITE_NOTICE')}"
+            elif shop_type == 'barter':
+                confirm_content += f"\n\n{self.language_manager.GetText('SHOP_DELETE_BARTER_NOTICE')}"
             elif shop_type == 'sell':
                 confirm_content += f"\n\n{self.language_manager.GetText('SHOP_DELETE_SELL_NOTICE')}"
             else:
@@ -3035,17 +3410,22 @@ class ARCButtonShopPlugin(Plugin):
             stock_display = self.language_manager.GetText('SHOP_STOCK_INFINITE') if is_infinite else shop_data['stock']
             stock_line = (
                 f"{self.language_manager.GetText('SHOP_REMAINING_STOCK')}: {stock_display}"
-                if shop_type == 'sell'
+                if shop_type in ('sell', 'barter')
                 else f"{self.language_manager.GetText('SHOP_REMAINING_BUDGET')}: {stock_display}"
             )
             confirm_title = f"{self.language_manager.GetText('SHOP_DELETE_SHOP_TITLE')}{self._get_shop_manage_title_suffix(shop_data)}"
+            price_line = (
+                f"{self.language_manager.GetText('SHOP_BARTER_RATIO_LABEL')}: {self._get_shop_display_price(shop_data)}"
+                if shop_type == 'barter'
+                else f"{self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}: {shop_data['unit_price']}"
+            )
             confirm_content = f"""{self._get_shop_type_plain_headline(shop_data)}
 
 {self.language_manager.GetText('SHOP_CONFIRM_DELETE')}
 
 {self.language_manager.GetText('SHOP_DETAIL_ITEM')}: {item_data['name']}
 {stock_line}
-{self.language_manager.GetText('SHOP_UNIT_PRICE_LABEL')}: {shop_data['unit_price']}"""
+{price_line}"""
 
             # 添加附魔信息
             if item_data.get('enchants'):
@@ -3061,6 +3441,8 @@ class ARCButtonShopPlugin(Plugin):
 
             if is_infinite:
                 confirm_content += f"\n\n{self.language_manager.GetText('SHOP_DELETE_INFINITE_NOTICE')}"
+            elif shop_type == 'barter':
+                confirm_content += f"\n\n{self.language_manager.GetText('SHOP_DELETE_BARTER_NOTICE')}"
             elif shop_type == 'sell':
                 confirm_content += f"\n\n{self.language_manager.GetText('SHOP_DELETE_SELL_NOTICE')}"
             else:
@@ -3099,7 +3481,7 @@ class ARCButtonShopPlugin(Plugin):
 
             if is_infinite:
                 result_content = self.language_manager.GetText("SHOP_SYSTEM_DELETE_SUCCESS")
-            elif shop_type == 'sell':
+            elif shop_type in ('sell', 'barter'):
                 result_content = self.language_manager.GetText("SHOP_DELETE_SELL_RETURN").format(shop_data['stock'], item_data['name'])
             else:
                 result_content = self.language_manager.GetText("SHOP_DELETE_BUY_RETURN").format(shop_data['stock'])
@@ -3135,13 +3517,25 @@ class ARCButtonShopPlugin(Plugin):
             is_infinite = self._is_shop_infinite(shop_data)
             
             if not is_infinite:
-                if shop_type == "sell":
+                if shop_type in ("sell", "barter"):
                     if shop_data['stock'] > 0:
                         return_item = self._shop_item_transaction_payload(item_data, shop_data['stock'])
                         self.inventory_manager.give_item(player, return_item)
                         player.send_message(self.language_manager.GetText("SHOP_REMOVED_BY_OWNER_SELL").format(
                             shop_data['stock'], item_data['name']
                         ))
+                    if shop_type == "barter":
+                        collected_items = []
+                        if shop_data.get('collected_items'):
+                            try:
+                                collected_items = json.loads(shop_data['collected_items'])
+                            except Exception:
+                                collected_items = []
+                        if collected_items:
+                            total_items = sum(item['count'] for item in collected_items)
+                            for item in collected_items:
+                                self.inventory_manager.give_item(player, item)
+                            player.send_message(self.language_manager.GetText("SHOP_BREAK_DELETE_SUCCESS").format(len(collected_items), total_items))
                 else:
                     if shop_data['stock'] > 0:
                         self._change_player_money(player.name, shop_data['stock'])
@@ -3358,10 +3752,20 @@ class ARCButtonShopPlugin(Plugin):
             owner_player = self.server.get_player(owner_name)  # 店主（在线才可返还物品）
             
             if not is_infinite:
-                if shop_type == "sell":
+                if shop_type in ("sell", "barter"):
                     if shop_data['stock'] > 0 and owner_player:
                         return_item = self._shop_item_transaction_payload(item_data, shop_data['stock'])
                         self.inventory_manager.give_item(owner_player, return_item)
+                    if shop_type == "barter":
+                        collected_items = []
+                        if shop_data.get('collected_items'):
+                            try:
+                                collected_items = json.loads(shop_data['collected_items'])
+                            except Exception:
+                                collected_items = []
+                        for item in collected_items:
+                            if owner_player:
+                                self.inventory_manager.give_item(owner_player, item)
                 else:
                     if shop_data['stock'] > 0:
                         self._change_player_money(owner_name, shop_data['stock'])
@@ -3384,7 +3788,7 @@ class ARCButtonShopPlugin(Plugin):
             
             if is_infinite:
                 result_content = self.language_manager.GetText("SHOP_SYSTEM_DELETE_SUCCESS")
-            elif shop_type == "sell":
+            elif shop_type in ("sell", "barter"):
                 result_content = self.language_manager.GetText("SHOP_DELETE_SELL_RETURN").format(shop_data['stock'], item_data['name'])
             else:
                 result_content = self.language_manager.GetText("SHOP_DELETE_BUY_RETURN").format(shop_data['stock'])
