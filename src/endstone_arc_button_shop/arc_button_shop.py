@@ -10,7 +10,6 @@ from endstone.form import ActionForm, ModalForm, Label, TextInput
 from endstone.block import Block
 
 from .DatabaseManager import DatabaseManager
-from .InventoryManager import InventoryManager
 from .LanguageManager import LanguageManager
 from .SettingManager import SettingManager
 from .PriceManager import PriceManager
@@ -73,8 +72,8 @@ class ARCButtonShopPlugin(Plugin):
         # 初始化设置管理器
         self.setting_manager = SettingManager()
         
-        # 初始化背包管理类（复用附魔/物品匹配等逻辑）
-        self.inventory_manager = InventoryManager(self)
+        # 背包管理：优先在 on_enable 挂载 arc_inventory；此处先占位
+        self.inventory_manager = None
         
         # 初始化默认配置
         self._init_default_settings()
@@ -94,11 +93,45 @@ class ARCButtonShopPlugin(Plugin):
         self._safe_log('info', "[ARCButtonShop] on_enable is called!")
         self.register_events(self)
 
+        # 背包：优先弧光背包管理器，缺省回退内嵌 InventoryManager
+        self._init_inventory_manager()
+
         # 初始化经济插件 - 检查 arc_core 优先，然后 umoney
         self._init_economy_plugin()
 
         # 注册定时任务
         self._register_scheduled_tasks()
+
+    def _init_inventory_manager(self) -> None:
+        """优先使用独立插件 arc_inventory；未安装时回退到本包内嵌实现。"""
+        try:
+            inv_plugin = self.server.plugin_manager.get_plugin("arc_inventory")
+            if inv_plugin is not None:
+                mgr = None
+                if hasattr(inv_plugin, "api_get_inventory_manager"):
+                    mgr = inv_plugin.api_get_inventory_manager()
+                if mgr is None:
+                    mgr = getattr(inv_plugin, "inventory_manager", None)
+                if mgr is not None:
+                    self.inventory_manager = mgr
+                    self._safe_log(
+                        "info",
+                        "[ARCButtonShop] Using arc_inventory for backpack operations.",
+                    )
+                    return
+        except Exception as e:
+            self._safe_log(
+                "warning",
+                f"[ARCButtonShop] arc_inventory not available ({e}), fallback to bundled InventoryManager.",
+            )
+        from .InventoryManager import InventoryManager
+
+        self.inventory_manager = InventoryManager(self)
+        self._safe_log(
+            "warning",
+            "[ARCButtonShop] arc_inventory not found; using bundled InventoryManager. "
+            "Install endstone_arc_inventory for shared backpack APIs.",
+        )
 
     def on_disable(self) -> None:
         self._safe_log('info', "[ARCButtonShop] on_disable is called!")

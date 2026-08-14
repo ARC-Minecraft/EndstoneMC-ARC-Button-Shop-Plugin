@@ -1,7 +1,7 @@
 # 弧光按钮商店插件 (ARC Button Shop Plugin)
 
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/6567c5684e5b4c6eb83b27aea6e425c9)](https://app.codacy.com/gh/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![版本](https://img.shields.io/badge/版本-0.3.2-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
+[![版本](https://img.shields.io/badge/版本-0.3.3-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
 [![EndStone](https://img.shields.io/badge/EndStone-0.10+-green.svg)](https://github.com/EndstoneMC/endstone)
 [![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)](https://www.python.org/)
 
@@ -57,8 +57,9 @@
 ## 📦 安装说明
 
 1. **下载插件**: 将插件文件放置到服务器的 `plugins` 目录
-2. **安装依赖**: 确保已安装 ARC Core 或 UMoney 经济插件（任意其一）  
-   - 插件会自动识别已安装的经济插件（优先 `arc_core`，否则使用 `umoney`）
+2. **安装依赖**:
+   - 经济：ARC Core 或 UMoney（任意其一；优先 `arc_core`）
+   - 背包：**建议安装** [弧光背包管理器](https://github.com/ARC-Minecraft/EndstoneMC-ARC-Inventory-Manager)（`arc_inventory`）；未安装时回退本包内嵌 `InventoryManager`
 3. **重启服务器**: 重启服务器或使用插件管理器重新加载
 4. **自动初始化**: 插件将自动创建必要的数据库和配置文件
 5. **开始使用**: 玩家可以使用 `/shop` 命令开始创建商店
@@ -395,7 +396,10 @@ item_stack.item_meta # 物品元数据
 
 ## 📝 更新日志
 
-### v0.3.2 (当前版本)
+### v0.3.3 (当前版本)
+- 🎒 **弧光背包管理器**：优先使用独立插件 `arc_inventory` 操作背包；未安装时仍回退内嵌实现
+
+### v0.3.2
 
 #### 管理功能
 - 🗑️ **按命名空间批量删除**：OP 可通过 `/shop` 主面板或 `/shopmanage delns` 列出模组命名空间并一键删除该命名空间下全部商店（排除 `minecraft` 与无命名空间物品）；支持 `/shopmanage delns <命名空间>` 直达确认
