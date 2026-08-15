@@ -19,6 +19,7 @@ class ARCButtonShopPlugin(Plugin):
     prefix = "ARCButtonShopPlugin"
     api_version = "0.10"
     load = "POSTWORLD"
+    depend = ["arc_inventory"]
 
     commands = {
         "shop": {
@@ -102,9 +103,10 @@ class ARCButtonShopPlugin(Plugin):
         # 注册定时任务
         self._register_scheduled_tasks()
 
-    def _init_inventory_manager(self) -> None:
+    def _init_inventory_manager(self, log_failure: bool = True) -> None:
         """强制挂载 arc_inventory；未安装则禁用背包相关功能。"""
-        self.inventory_manager = None
+        if self.inventory_manager is not None:
+            return
         try:
             inv_plugin = self.server.plugin_manager.get_plugin("arc_inventory")
             if inv_plugin is not None:
@@ -125,14 +127,17 @@ class ARCButtonShopPlugin(Plugin):
                 "error",
                 f"[ARCButtonShop] Failed to load arc_inventory: {e}",
             )
-        self._safe_log(
-            "error",
-            "[ARCButtonShop] arc_inventory is REQUIRED. "
-            "Install endstone_arc_inventory and restart; shop item operations are disabled until then.",
-        )
+        if log_failure:
+            self._safe_log(
+                "error",
+                "[ARCButtonShop] arc_inventory is REQUIRED. "
+                "Install endstone_arc_inventory and restart; shop item operations are disabled until then.",
+            )
 
     def _require_inventory_manager(self, player=None) -> bool:
-        """背包管理器可用时返回 True；否则提示并返回 False。"""
+        """背包管理器可用时返回 True；启动时未挂上则现场再解析一次。"""
+        if self.inventory_manager is None:
+            self._init_inventory_manager(log_failure=False)
         if self.inventory_manager is not None:
             return True
         msg = "§c[按钮商店] 未安装弧光背包管理器 (arc_inventory)，无法操作物品。请联系管理员安装后重启。"
@@ -1198,6 +1203,8 @@ class ARCButtonShopPlugin(Plugin):
         """读取玩家背包，返回可用于匹配官方定价物品的类型键集合"""
         match_keys = set()
         try:
+            if not self._require_inventory_manager(player):
+                return match_keys
             for inv_item in self.inventory_manager.get_inventory_items(player):
                 item_type_id = inv_item.get('type')
                 if item_type_id:
@@ -1994,6 +2001,8 @@ class ARCButtonShopPlugin(Plugin):
         try:
             if player.name not in self.setting_shop_player:
                 return
+            if not self._require_inventory_manager(player):
+                return
             
             shop_data = self.setting_shop_player[player.name]
             item_info = shop_data['item_info']
@@ -2178,6 +2187,8 @@ class ARCButtonShopPlugin(Plugin):
     def _execute_barter_trade(self, player, shop_data, lots):
         """执行以物易物：玩家交出 lots*Y 个 B，获得 lots*X 个 A"""
         try:
+            if not self._require_inventory_manager(player):
+                return False, self.language_manager.GetText("SHOP_PURCHASE_ERROR")
             item_data = json.loads(shop_data['item_data'])
             give_amount, cost_amount, cost_item = self._get_barter_trade_config(item_data)
             if not cost_item.get('type'):
@@ -2277,6 +2288,8 @@ class ARCButtonShopPlugin(Plugin):
     def _execute_sell_shop_purchase(self, player, shop_data, quantity, base_price, tax_amount, total_price, unit_price=None):
         """执行出售商店的购买操作（含无限商店）"""
         try:
+            if not self._require_inventory_manager(player):
+                return False, self.language_manager.GetText("SHOP_PURCHASE_ERROR")
             if unit_price is None:
                 unit_price = shop_data['unit_price']
             buyer_money = self._get_player_money(player.name)
@@ -2364,6 +2377,8 @@ class ARCButtonShopPlugin(Plugin):
     def _execute_buy_shop_purchase(self, player, shop_data, quantity, base_price, tax_amount, total_price, unit_price=None):
         """执行收购商店的购买操作（玩家出售物品给收购商店，含无限商店）"""
         try:
+            if not self._require_inventory_manager(player):
+                return False, self.language_manager.GetText("SHOP_PURCHASE_ERROR")
             if unit_price is None:
                 unit_price = shop_data['unit_price']
             is_infinite = self._is_shop_infinite(shop_data)
@@ -3310,6 +3325,8 @@ class ARCButtonShopPlugin(Plugin):
                     # 检查玩家是否有足够的物品
                     required_item = self._shop_item_transaction_payload(item_data, quantity)
 
+                    if not self._require_inventory_manager(sender):
+                        return
                     if self.inventory_manager.has_item(sender, required_item) and self.inventory_manager.remove_item(sender, required_item):
                         # 更新库存（可随时补货；同步抬高 quantity 上限记录）
                         new_stock = shop_data['stock'] + quantity

@@ -1,7 +1,7 @@
 # 弧光按钮商店插件 (ARC Button Shop Plugin)
 
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/6567c5684e5b4c6eb83b27aea6e425c9)](https://app.codacy.com/gh/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![版本](https://img.shields.io/badge/版本-0.4.1-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
+[![版本](https://img.shields.io/badge/版本-0.4.2-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
 [![EndStone](https://img.shields.io/badge/EndStone-0.10+-green.svg)](https://github.com/EndstoneMC/endstone)
 [![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)](https://www.python.org/)
 
@@ -407,7 +407,10 @@ item_stack.item_meta # 物品元数据
 
 ## 📝 更新日志
 
-### v0.4.1 (当前版本)
+### v0.4.2 (当前版本)
+- 🩹 **修复交易空引用**：声明硬依赖 `arc_inventory`，并在买卖/易物时延迟挂载背包管理器，避免商店比背包插件先启用导致 `has_item` 报错
+
+### v0.4.1
 - 🎒 **强制依赖弧光背包管理器**：移除本包内嵌 `InventoryManager`，未安装 `arc_inventory` 时禁用物品操作
 - 🔗 删店/领取返还改为按 `give_item_count` 实际入包数量提示与记日志（配合背包管理器修复不可堆叠物数量丢失）
 
