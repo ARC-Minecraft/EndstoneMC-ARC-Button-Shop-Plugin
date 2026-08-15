@@ -1,7 +1,7 @@
 # 弧光按钮商店插件 (ARC Button Shop Plugin)
 
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/6567c5684e5b4c6eb83b27aea6e425c9)](https://app.codacy.com/gh/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![版本](https://img.shields.io/badge/版本-0.4.2-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
+[![版本](https://img.shields.io/badge/版本-0.4.3-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
 [![EndStone](https://img.shields.io/badge/EndStone-0.10+-green.svg)](https://github.com/EndstoneMC/endstone)
 [![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)](https://www.python.org/)
 
@@ -407,7 +407,21 @@ item_stack.item_meta # 物品元数据
 
 ## 📝 更新日志
 
-### v0.4.2 (当前版本)
+### v0.4.3 (当前版本)
+
+- 确认并整理近期修复说明（需同时安装弧光背包管理器 `arc_inventory` ≥ 0.1.3）
+
+#### 交易崩溃
+- 🩹 **购买/收购时报 `has_item`**：商店按插件名比背包管理器先启用，`inventory_manager` 仍为 `None` 就会直接报错。现已声明硬依赖 `arc_inventory`，交易时还会再尝试挂载管理器
+
+#### 物品发放
+- 🪓 **删店退货数量不对**：镐等不可堆叠物品曾按 64 一叠发放，7 把镐可能只退回 1～2 把（已由背包管理器按真实堆叠上限逐个发放）
+- 📖 **附魔书买到手是白板**：经验修补等带 NBT 的附魔书还原失败后不会回退写附魔（已由背包管理器修复）
+
+#### 依赖
+- 🎒 彻底移除本包内嵌背包实现，**必须安装** `arc_inventory`
+
+### v0.4.2
 - 🩹 **修复交易空引用**：声明硬依赖 `arc_inventory`，并在买卖/易物时延迟挂载背包管理器，避免商店比背包插件先启用导致 `has_item` 报错
 
 ### v0.4.1
