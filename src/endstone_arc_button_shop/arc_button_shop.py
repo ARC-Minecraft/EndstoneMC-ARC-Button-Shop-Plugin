@@ -93,7 +93,7 @@ class ARCButtonShopPlugin(Plugin):
         self._safe_log('info', "[ARCButtonShop] on_enable is called!")
         self.register_events(self)
 
-        # 背包：优先弧光背包管理器，缺省回退内嵌 InventoryManager
+        # 背包：强制使用弧光背包管理器（不再内嵌回退）
         self._init_inventory_manager()
 
         # 初始化经济插件 - 检查 arc_core 优先，然后 umoney
@@ -103,7 +103,8 @@ class ARCButtonShopPlugin(Plugin):
         self._register_scheduled_tasks()
 
     def _init_inventory_manager(self) -> None:
-        """优先使用独立插件 arc_inventory；未安装时回退到本包内嵌实现。"""
+        """强制挂载 arc_inventory；未安装则禁用背包相关功能。"""
+        self.inventory_manager = None
         try:
             inv_plugin = self.server.plugin_manager.get_plugin("arc_inventory")
             if inv_plugin is not None:
@@ -121,17 +122,37 @@ class ARCButtonShopPlugin(Plugin):
                     return
         except Exception as e:
             self._safe_log(
-                "warning",
-                f"[ARCButtonShop] arc_inventory not available ({e}), fallback to bundled InventoryManager.",
+                "error",
+                f"[ARCButtonShop] Failed to load arc_inventory: {e}",
             )
-        from .InventoryManager import InventoryManager
-
-        self.inventory_manager = InventoryManager(self)
         self._safe_log(
-            "warning",
-            "[ARCButtonShop] arc_inventory not found; using bundled InventoryManager. "
-            "Install endstone_arc_inventory for shared backpack APIs.",
+            "error",
+            "[ARCButtonShop] arc_inventory is REQUIRED. "
+            "Install endstone_arc_inventory and restart; shop item operations are disabled until then.",
         )
+
+    def _require_inventory_manager(self, player=None) -> bool:
+        """背包管理器可用时返回 True；否则提示并返回 False。"""
+        if self.inventory_manager is not None:
+            return True
+        msg = "§c[按钮商店] 未安装弧光背包管理器 (arc_inventory)，无法操作物品。请联系管理员安装后重启。"
+        if player is not None:
+            try:
+                player.send_message(msg)
+            except Exception:
+                pass
+        self._safe_log("error", "[ARCButtonShop] inventory_manager unavailable")
+        return False
+
+    def _give_items_to_player(self, player, item_info: dict) -> int:
+        """发放物品并返回实际入包数量。"""
+        if not self._require_inventory_manager(player):
+            return 0
+        try:
+            return int(self.inventory_manager.give_item_count(player, item_info) or 0)
+        except Exception as e:
+            self._safe_log("error", f"[ARCButtonShop] give_item_count failed: {e}")
+            return 0
 
     def on_disable(self) -> None:
         self._safe_log('info', "[ARCButtonShop] on_disable is called!")
@@ -732,6 +753,8 @@ class ARCButtonShopPlugin(Plugin):
     def _show_item_selection_panel(self, player, shop_type="sell", give_item=None):
         """显示物品选择面板（含以物易物：先选给出物 A，再选收取物 B）"""
         try:
+            if not self._require_inventory_manager(player):
+                return
             # 获取玩家背包中的物品
             inventory_items = self.inventory_manager.get_inventory_items(player)
             
@@ -2753,7 +2776,13 @@ class ARCButtonShopPlugin(Plugin):
         if shop_type in ("sell", "barter"):
             if shop_data['stock'] > 0 and owner_player:
                 return_item = self._shop_item_transaction_payload(item_data, shop_data['stock'])
-                self.inventory_manager.give_item(owner_player, return_item)
+                given = self._give_items_to_player(owner_player, return_item)
+                if given < int(shop_data['stock']):
+                    self._safe_log(
+                        "warning",
+                        f"[ARCButtonShop] Refund stock partial: want={shop_data['stock']} given={given} "
+                        f"owner={owner_name} shop_id={shop_data.get('id')}",
+                    )
             if shop_type == "barter" and owner_player:
                 collected_items = []
                 if shop_data.get('collected_items'):
@@ -2762,7 +2791,7 @@ class ARCButtonShopPlugin(Plugin):
                     except Exception:
                         collected_items = []
                 for item in collected_items:
-                    self.inventory_manager.give_item(owner_player, item)
+                    self._give_items_to_player(owner_player, item)
         else:
             if shop_data['stock'] > 0:
                 self._change_player_money(owner_name, shop_data['stock'])
@@ -2774,7 +2803,7 @@ class ARCButtonShopPlugin(Plugin):
                     collected_items = []
             if owner_player:
                 for item in collected_items:
-                    self.inventory_manager.give_item(owner_player, item)
+                    self._give_items_to_player(owner_player, item)
 
     def _show_namespace_delete_panel(self, player):
         """显示按命名空间批量删除面板（OP）"""
@@ -3520,10 +3549,16 @@ class ARCButtonShopPlugin(Plugin):
                 if shop_type in ("sell", "barter"):
                     if shop_data['stock'] > 0:
                         return_item = self._shop_item_transaction_payload(item_data, shop_data['stock'])
-                        self.inventory_manager.give_item(player, return_item)
+                        given = self._give_items_to_player(player, return_item)
                         player.send_message(self.language_manager.GetText("SHOP_REMOVED_BY_OWNER_SELL").format(
-                            shop_data['stock'], item_data['name']
+                            given, item_data['name']
                         ))
+                        if given < int(shop_data['stock']):
+                            self._safe_log(
+                                "warning",
+                                f"[ARCButtonShop] Owner break refund partial: want={shop_data['stock']} given={given} "
+                                f"shop_id={shop_data.get('id')}",
+                            )
                     if shop_type == "barter":
                         collected_items = []
                         if shop_data.get('collected_items'):
@@ -3532,9 +3567,9 @@ class ARCButtonShopPlugin(Plugin):
                             except Exception:
                                 collected_items = []
                         if collected_items:
-                            total_items = sum(item['count'] for item in collected_items)
+                            total_items = 0
                             for item in collected_items:
-                                self.inventory_manager.give_item(player, item)
+                                total_items += self._give_items_to_player(player, item)
                             player.send_message(self.language_manager.GetText("SHOP_BREAK_DELETE_SUCCESS").format(len(collected_items), total_items))
                 else:
                     if shop_data['stock'] > 0:
@@ -3549,9 +3584,9 @@ class ARCButtonShopPlugin(Plugin):
                         except Exception:
                             collected_items = []
                     if collected_items:
-                        total_items = sum(item['count'] for item in collected_items)
+                        total_items = 0
                         for item in collected_items:
-                            self.inventory_manager.give_item(player, item)
+                            total_items += self._give_items_to_player(player, item)
                         player.send_message(self.language_manager.GetText("SHOP_BREAK_DELETE_SUCCESS").format(len(collected_items), total_items))
             else:
                 player.send_message(self.language_manager.GetText("SHOP_SYSTEM_DELETED"))
@@ -3631,7 +3666,7 @@ class ARCButtonShopPlugin(Plugin):
         """收取单个物品"""
         try:
             collect_title = f"{self.language_manager.GetText('SHOP_COLLECT_ITEMS_TITLE')}{self._get_shop_manage_title_suffix(shop_data)}"
-            if self.inventory_manager.give_item(player, item_data):
+            if self._give_items_to_player(player, item_data) >= int(item_data.get('count', 0) or 0):
                 collected_items = []
                 if shop_data.get('collected_items'):
                     try:
@@ -3702,7 +3737,7 @@ class ARCButtonShopPlugin(Plugin):
             success_count = 0
             failed_items = []
             for item in collected_items:
-                if self.inventory_manager.give_item(player, item):
+                if self._give_items_to_player(player, item) >= int(item.get('count', 0) or 0):
                     success_count += 1
                 else:
                     failed_items.append(item)
@@ -3755,7 +3790,13 @@ class ARCButtonShopPlugin(Plugin):
                 if shop_type in ("sell", "barter"):
                     if shop_data['stock'] > 0 and owner_player:
                         return_item = self._shop_item_transaction_payload(item_data, shop_data['stock'])
-                        self.inventory_manager.give_item(owner_player, return_item)
+                        given = self._give_items_to_player(owner_player, return_item)
+                        if given < int(shop_data['stock']):
+                            self._safe_log(
+                                "warning",
+                                f"[ARCButtonShop] Delete refund partial: want={shop_data['stock']} given={given} "
+                                f"owner={owner_name} shop_id={shop_data.get('id')}",
+                            )
                     if shop_type == "barter":
                         collected_items = []
                         if shop_data.get('collected_items'):
@@ -3765,7 +3806,7 @@ class ARCButtonShopPlugin(Plugin):
                                 collected_items = []
                         for item in collected_items:
                             if owner_player:
-                                self.inventory_manager.give_item(owner_player, item)
+                                self._give_items_to_player(owner_player, item)
                 else:
                     if shop_data['stock'] > 0:
                         self._change_player_money(owner_name, shop_data['stock'])
@@ -3777,7 +3818,7 @@ class ARCButtonShopPlugin(Plugin):
                             collected_items = []
                     for item in collected_items:
                         if owner_player:
-                            self.inventory_manager.give_item(owner_player, item)
+                            self._give_items_to_player(owner_player, item)
             
             self.db_manager.delete(
                 table='button_shops',
