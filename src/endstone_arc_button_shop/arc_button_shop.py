@@ -22,10 +22,10 @@ class ARCButtonShopPlugin(Plugin):
     depend = ["arc_inventory"]
 
     commands = {
-        "shop": {
-            "description": "Open button shop interface",
-            "usages": ["/shop"],
-            "permissions": ["arc_button_shop.command.shop"],
+        "bs": {
+            "description": "Button shop commands",
+            "usages": ["/bs", "/bs qs start", "/bs qs stop"],
+            "permissions": ["arc_button_shop.command.bs"],
         },
         "shopmanage": {
             "description": "Manage button shops, op only.",
@@ -34,8 +34,8 @@ class ARCButtonShopPlugin(Plugin):
     }
 
     permissions = {
-        "arc_button_shop.command.shop": {
-            "description": "Allow users to access shop interface",
+        "arc_button_shop.command.bs": {
+            "description": "Allow users to access button shop interface",
             "default": True
         }
     }
@@ -43,6 +43,7 @@ class ARCButtonShopPlugin(Plugin):
     def __init__(self):
         super().__init__()
         self.setting_shop_player = {}  # 玩家名 -> 商店设置数据
+        self.quick_setup_players = set()  # 快速设置官方自动定价商店的玩家
         self.CHUNK_SIZE = 16  # 区块大小，用于优化查询
     
     def _safe_log(self, level: str, message: str):
@@ -323,14 +324,142 @@ class ARCButtonShopPlugin(Plugin):
 
     def on_command(self, sender: CommandSender, command: Command, args: list[str]) -> bool:
         match command.name:
-            case "shop":
-                if hasattr(sender, 'location') and hasattr(sender, 'send_form'):
-                    self._show_shop_main_panel(sender)
-                else:
-                    sender.send_message(self.language_manager.GetText("PLAYER_ONLY_COMMAND"))
+            case "bs":
+                return self._handle_bs_command(sender, args)
             case "shopmanage":
                 return self._handle_shop_manage_command(sender, args)
         return True
+
+    def _handle_bs_command(self, sender: CommandSender, args: list[str]) -> bool:
+        if not (hasattr(sender, 'location') and hasattr(sender, 'send_form')):
+            sender.send_message(self.language_manager.GetText("PLAYER_ONLY_COMMAND"))
+            return True
+        if args and args[0].lower() == "qs":
+            return self._handle_quick_setup_command(sender, args[1:])
+        self._show_shop_main_panel(sender)
+        return True
+
+    def _handle_quick_setup_command(self, player, args: list[str]) -> bool:
+        if not getattr(player, 'is_op', False):
+            player.send_message(self.language_manager.GetText("QS_OP_ONLY"))
+            return True
+        if not args:
+            player.send_message(self.language_manager.GetText("QS_USAGE"))
+            return True
+        action = args[0].lower()
+        if action == "start":
+            if player.name in self.quick_setup_players:
+                player.send_message(self.language_manager.GetText("QS_ALREADY_ACTIVE"))
+                return True
+            self.quick_setup_players.add(player.name)
+            self.setting_shop_player.pop(player.name, None)
+            player.send_message(self.language_manager.GetText("QS_START_SUCCESS").replace('\\n', '\n'))
+            return True
+        if action == "stop":
+            if player.name not in self.quick_setup_players:
+                player.send_message(self.language_manager.GetText("QS_NOT_ACTIVE"))
+                return True
+            self.quick_setup_players.discard(player.name)
+            player.send_message(self.language_manager.GetText("QS_STOP_SUCCESS"))
+            return True
+        player.send_message(self.language_manager.GetText("QS_USAGE"))
+        return True
+
+    def _get_held_item_info(self, player):
+        """读取玩家主手物品，返回与 arc_inventory 一致的 item_info dict。"""
+        try:
+            inventory = player.inventory
+            if self._require_inventory_manager(player):
+                held_slot = getattr(inventory, 'held_item_slot', None)
+                if held_slot is not None:
+                    for inv_item in self.inventory_manager.get_inventory_items(player):
+                        if inv_item.get('slot_index') == held_slot:
+                            return inv_item
+            held_stack = getattr(inventory, 'item_in_main_hand', None)
+            if held_stack and getattr(held_stack, 'type', None) and getattr(held_stack, 'amount', 0) > 0:
+                item_type_id = held_stack.type.id
+                return {
+                    'type': item_type_id,
+                    'name': item_type_id,
+                    'count': held_stack.amount,
+                    'data': getattr(held_stack, 'data', 0) or 0,
+                    'enchants': {},
+                    'lore': [],
+                }
+        except Exception as e:
+            self._safe_log('warning', f"[ARCButtonShop] Read held item failed: {e}")
+        return None
+
+    def _resolve_official_item_type(self, item_type_id: str):
+        """将手持物品类型解析为 official_prices.yml 中的键。"""
+        if not item_type_id:
+            return None
+        held_keys = self._official_item_type_match_keys(item_type_id)
+        for official_type in self.price_manager.official_prices:
+            if held_keys & self._official_item_type_match_keys(official_type):
+                return official_type
+        return None
+
+    def _normalize_item_type_id(self, item_type_id: str) -> str:
+        """补全物品类型 ID（如 diamond -> minecraft:diamond）。"""
+        if not item_type_id:
+            return item_type_id
+        if ':' in item_type_id:
+            return item_type_id
+        return f'minecraft:{item_type_id}'
+
+    def _handle_quick_setup_interact(self, player, block) -> None:
+        """快速设置模式：手持物品右键按钮，创建官方自动定价二合一商店。"""
+        held_item = self._get_held_item_info(player)
+        if not held_item:
+            player.send_message(self.language_manager.GetText("QS_NO_HELD_ITEM"))
+            return
+
+        held_type = held_item.get('type', '')
+        item_type = self._resolve_official_item_type(held_type)
+        if not item_type:
+            item_type = self._normalize_item_type_id(held_type)
+        if not item_type:
+            player.send_message(self.language_manager.GetText("QS_NO_HELD_ITEM"))
+            return
+
+        using_placeholder = not self.price_manager.has_official_price(item_type)
+        sell_price = self.price_manager.calculate_final_price(item_type, 'sell', 0)
+        if sell_price is None or sell_price <= 0:
+            player.send_message(self.language_manager.GetText("SHOP_OFFICIAL_PRICE_ERROR"))
+            return
+
+        display_name = (
+            held_item.get('name')
+            if using_placeholder and held_item.get('name')
+            else self.price_manager.get_item_display_name(item_type)
+        )
+        item_info = {
+            'type': item_type,
+            'name': display_name,
+            'count': 1,
+            'data': 0,
+            'enchants': {},
+            'lore': [],
+        }
+        self.setting_shop_player[player.name] = {
+            'item_info': item_info,
+            'unit_price': sell_price,
+            'shop_type': 'both',
+            'budget': 0,
+            'is_infinite': True,
+            'pricing_mode': 'official',
+            'discount_percent': 0.0,
+            'create_time': datetime.datetime.now(),
+        }
+        self._handle_shop_creation(player, block)
+        self.setting_shop_player.pop(player.name, None)
+        if player.name in self.quick_setup_players:
+            if using_placeholder:
+                player.send_message(
+                    self.language_manager.GetText("QS_PLACEHOLDER_PRICE").format(display_name)
+                )
+            player.send_message(self.language_manager.GetText("QS_CONTINUE_HINT"))
     
     # 数据库
     def _create_shop_tables(self) -> None:
@@ -550,6 +679,17 @@ class ARCButtonShopPlugin(Plugin):
 
             # 检查block是否为None
             if block is None:
+                return
+
+            # 快速设置模式：手持物品右键按钮，直接创建官方自动定价二合一商店
+            if player.name in self.quick_setup_players:
+                if event.action != PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK:
+                    return
+                if not self._is_button_block(block):
+                    player.send_message(self.language_manager.GetText("SHOP_NOT_BUTTON").format(block.type))
+                    return
+                self._handle_quick_setup_interact(player, block)
+                event.is_cancelled = True
                 return
 
             # 检查玩家是否处于商店设置状态（仅右键绑定按钮）
@@ -2459,9 +2599,60 @@ class ARCButtonShopPlugin(Plugin):
             }
             
             self.db_manager.insert("shop_transactions", transaction_data)
+            self._sky_eye_log_shop_trade(
+                player,
+                shop_id=shop_id,
+                quantity=quantity,
+                unit_price=unit_price,
+                total_price=total_price,
+                tax_amount=tax_amount,
+                is_buy_shop=is_buy_shop,
+            )
             
         except Exception as e:
             self._safe_log('error', f"[ARCButtonShop] Record transaction error: {str(e)}")
+
+    def _sky_eye_log_shop_trade(
+        self,
+        player,
+        *,
+        shop_id,
+        quantity,
+        unit_price,
+        total_price,
+        tax_amount=0,
+        is_buy_shop=False,
+    ):
+        """写入弧光核心天眼（若已安装且已开启）。"""
+        try:
+            core = self.server.plugin_manager.get_plugin("arc_core")
+            if core is None:
+                return
+            logger = getattr(core, "api_sky_eye_log", None)
+            if not callable(logger):
+                return
+            shop_data = self._get_shop_by_id(shop_id) or {}
+            item_data = {}
+            try:
+                item_data = json.loads(shop_data.get("item_data") or "{}")
+            except Exception:
+                item_data = {}
+            item_name = item_data.get("name") or shop_data.get("item_type") or "?"
+            shop_type = shop_data.get("shop_type") or ("buy" if is_buy_shop else "sell")
+            detail = (
+                f"shop_id={shop_id};type={shop_type};item={item_name};qty={quantity}"
+                f";unit={unit_price};total={total_price};tax={tax_amount}"
+            )
+            owner_name = str(shop_data.get("owner_name") or "")
+            logger(
+                "ShopTrade",
+                player=player,
+                detail=detail,
+                target_name=owner_name,
+                target_type="shop_owner",
+            )
+        except Exception:
+            pass
 
     def _notify_shop_owner(self, shop_data, buyer_name, quantity, item_name, amount, shop_type):
         """通知店主（系统/无限商店不通知创建者，资金与创建者无关）"""

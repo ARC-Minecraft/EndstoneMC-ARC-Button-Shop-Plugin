@@ -12,6 +12,8 @@ MAIN_PATH = 'plugins/ARCButtonShop'
 class PriceManager:
     """官方定价管理器 - 管理统一价格配置、动态定价和每日波动"""
 
+    PLACEHOLDER_SELL_PRICE = 99999  # 快速设置时未配置物品的临时出售价
+
     def __init__(self, plugin):
         self.plugin = plugin
         self.official_prices = {}  # item_type -> {'sell': float, 'buy': float, 'display_name'?, 'category'?}
@@ -775,6 +777,8 @@ prices:
     def get_base_price(self, item_type: str, shop_type: str) -> Optional[int]:
         """获取物品基准价格"""
         if item_type not in self.official_prices:
+            if shop_type == 'sell':
+                return self.PLACEHOLDER_SELL_PRICE
             return None
         prices = self.official_prices[item_type]
         if shop_type == 'sell':

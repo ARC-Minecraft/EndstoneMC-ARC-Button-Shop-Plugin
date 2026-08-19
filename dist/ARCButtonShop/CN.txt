@@ -344,3 +344,14 @@ SHOP_MANAGE_PRICES_NO_ITEMS=§c暂无官方定价物品
 SHOP_BUY_SUSPENDED=§c§l[回收暂停]§r
 SHOP_BUY_SUSPENDED_DETAIL=§c回收价格已超过出售价格，回收功能暂时停止。§7等待价格恢复后自动重新开放。
 SHOP_BUY_SUSPENDED_MSG=§c该物品回收价格已超过出售价格，回收功能暂时停止！§7请等待价格恢复。
+# 快速设置自动定价商店
+QS_OP_ONLY=§c只有 OP 可以使用快速设置指令
+QS_USAGE=§c用法: /bs qs start 或 /bs qs stop
+QS_ALREADY_ACTIVE=§e你已经处于自动定价商店快速设置模式。手持物品右键按钮即可创建，/bs qs stop 结束
+QS_NOT_ACTIVE=§c你当前不在快速设置模式
+QS_START_SUCCESS=§a已进入自动定价商店快速设置模式。\n§f手持要上架的物品，右键按钮即可设为官方出售+回收商店。\n§e输入 /bs qs stop 结束
+QS_STOP_SUCCESS=§a已退出自动定价商店快速设置模式
+QS_NO_HELD_ITEM=§c请手持要上架的物品后再交互按钮
+QS_NO_OFFICIAL_PRICE=§c物品 §e{0} §c没有官方定价，无法快速设置为自动定价商店
+QS_PLACEHOLDER_PRICE=§e物品 §f{0} §e尚未配置官方定价，暂以 §c99999 §e作为出售价；回收需配置 buy 价后开放。请在 official_prices.yml 补充后执行 /shopmanage pricereload
+QS_CONTINUE_HINT=§7仍在快速设置中：可继续手持物品点按钮，或输入 /bs qs stop 结束

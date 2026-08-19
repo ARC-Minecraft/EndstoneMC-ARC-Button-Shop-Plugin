@@ -147,3 +147,14 @@ SHOP_MANAGE_DELNS_SUCCESS=§aDeleted §f{1} §ashop(s) under namespace §e{0}
 SHOP_MANAGE_DELNS_NOT_FOUND=§cNo shops found for namespace §e{0}
 SHOP_MANAGE_DELNS_PANEL_ERROR=§cFailed to show namespace delete panel
 SHOP_MANAGE_DELNS_USAGE=§cUsage: /shopmanage delns [namespace]
+# Quick setup official auto-pricing shops
+QS_OP_ONLY=§cOnly OP can use quick setup
+QS_USAGE=§cUsage: /bs qs start or /bs qs stop
+QS_ALREADY_ACTIVE=§eYou are already in auto-pricing shop quick setup. Hold an item and right-click a button, or /bs qs stop to exit
+QS_NOT_ACTIVE=§cYou are not in quick setup mode
+QS_START_SUCCESS=§aEntered auto-pricing shop quick setup.\n§fHold the item to list, then right-click a button to create an official sell+recycle shop.\n§eType /bs qs stop to exit
+QS_STOP_SUCCESS=§aExited auto-pricing shop quick setup
+QS_NO_HELD_ITEM=§cHold the item you want to list before interacting with a button
+QS_NO_OFFICIAL_PRICE=§cItem §e{0} §chas no official price and cannot be used for quick setup
+QS_PLACEHOLDER_PRICE=§eItem §f{0} §ehas no official price yet; temporary sell price is §c99999§e. Recycle opens after you add a buy price in official_prices.yml and run /shopmanage pricereload
+QS_CONTINUE_HINT=§7Still in quick setup: hold an item and click another button, or type /bs qs stop to exit

@@ -1,7 +1,7 @@
 # 弧光按钮商店插件 (ARC Button Shop Plugin)
 
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/6567c5684e5b4c6eb83b27aea6e425c9)](https://app.codacy.com/gh/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![版本](https://img.shields.io/badge/版本-0.4.3-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
+[![版本](https://img.shields.io/badge/版本-0.4.6-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
 [![EndStone](https://img.shields.io/badge/EndStone-0.10+-green.svg)](https://github.com/EndstoneMC/endstone)
 [![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)](https://www.python.org/)
 
@@ -34,6 +34,7 @@
 - **管理全部商店**: OP 在主面板可使用「管理全部商店（OP）」查看并管理服务器内所有玩家的商店
 - **转换为无限商店**: OP 在任意商店的管理面板中可将该商店「转换为无限商店（系统商店）」，一键变为无限库存/预算的官方商店
 - **系统商店标识**: 无限商店在列表和详情中显示「无限」库存/预算及 §e[系统] 标识
+- **快速设置自动定价商店**: OP 使用 `/bs qs start` 后，手持物品右键按钮即可批量创建官方出售+回收商店，`/bs qs stop` 退出
 
 ### 📈 官方定价与动态价格波动
 - **官方定价商店**: OP 可创建「官方定价出售/收购/二合一」商店，物品与基准价来自 `official_prices.yml`，无需从背包选物
@@ -72,7 +73,7 @@
    - 背包：**必须安装** [弧光背包管理器](https://github.com/ARC-Minecraft/EndstoneMC-ARC-Inventory-Manager)（`arc_inventory`）
 3. **重启服务器**: 重启服务器或使用插件管理器重新加载
 4. **自动初始化**: 插件将自动创建必要的数据库和配置文件
-5. **开始使用**: 玩家可以使用 `/shop` 命令开始创建商店
+5. **开始使用**: 玩家可以使用 `/bs` 命令开始创建商店
 
 ## 🎮 使用指南
 
@@ -80,17 +81,27 @@
 
 | 指令 | 权限要求 | 语法 | 功能描述 |
 |------|----------|------|----------|
-| `/shop` | 所有玩家 | `/shop` | 打开商店主面板，管理和浏览商店 |
+| `/bs` | 所有玩家 | `/bs` | 打开商店主面板，管理和浏览商店 |
+| `/bs qs start` | OP | `/bs qs start` | 进入自动定价商店快速设置模式：手持物品右键按钮，即设为官方出售+回收商店 |
+| `/bs qs stop` | OP | `/bs qs stop` | 退出自动定价商店快速设置模式 |
 | `/shopmanage` | OP | `/shopmanage <list\|clear\|reload\|prices\|pricereload\|pricereset\|delns>` | 管理员商店与定价管理指令 |
 
 ### 🏪 创建商店流程
 
-1. **打开界面**: 使用 `/shop` 命令打开商店主面板
+1. **打开界面**: 使用 `/bs` 命令打开商店主面板
 2. **选择类型**: 点击「创建商店」，选择「出售商店」「收购商店」或「以物易物商店」；**OP 额外可选**「无限出售（系统商店）」「无限收购（系统商店）」或「官方定价」出售/收购/二合一
 3. **选择物品**: 玩家店从背包选择物品；以物易物需先后选择给出物 A 与收取物 B；官方定价店按分类或背包筛选选择价目表物品（不消耗物品或预算）
 4. **设置价格/比例**: 玩家买卖店输入单价；普通收购商店还需输入预算；以物易物设置兑换比例 x:y；官方定价店可设置折扣/加价百分比
 5. **放置按钮**: 在想要创建商店的位置放置一个按钮
 6. **右键激活**: 右键点击按钮完成商店创建（出售/以物易物会从背包扣除给出物 A）
+
+### ⚡ 快速设置自动定价商店（OP）
+
+1. 输入 `/bs qs start` 进入快速设置模式
+2. 手持要上架的物品（未在 `official_prices.yml` 配置的物品会暂以 **99999** 作为出售价，后续补配置并 `/shopmanage pricereload` 即可生效）
+3. 右键已放置的按钮，立即创建官方出售+回收二合一商店
+4. 可连续更换手持物品并点击其他按钮批量建店
+5. 输入 `/bs qs stop` 退出模式
 
 ### 💳 购买 / 兑换流程
 
@@ -114,7 +125,7 @@
 - **管理全部商店**: OP 在主面板点击「管理全部商店（OP）」可列出服务器内所有活跃商店，点击任意商店进行管理
 - **转换为无限商店**: 在商店管理面板中，OP 可将该商店「转换为无限商店（系统商店）」——买卖店变为无限库存/预算；以物易物店变为系统无限发放 A 的官方易物点
 - **官方定价管理**: 使用 `/shopmanage prices` 查看基准价与波动状态；`/shopmanage pricereload` 重载定价文件；`/shopmanage pricereset` 重置所有动态调整
-- **按命名空间批量删除**: `/shop` 主面板（OP）或 `/shopmanage delns` 列出所有模组命名空间及商店数量；点击确认后删除该命名空间下全部商店（不含 `minecraft` 与无命名空间物品）。也可直接 `/shopmanage delns <命名空间>` 进入确认。模组卸载后清理残留商店很方便
+- **按命名空间批量删除**: `/bs` 主面板（OP）或 `/shopmanage delns` 列出所有模组命名空间及商店数量；点击确认后删除该命名空间下全部商店（不含 `minecraft` 与无命名空间物品）。也可直接 `/shopmanage delns <命名空间>` 进入确认。模组卸载后清理残留商店很方便
 - **删除他人商店**: OP 从「管理全部商店」删除他人商店时，剩余库存/预算及收集物品会返还给**店主**（店主在线则发放物品）
 
 #### 商店保护机制
@@ -407,7 +418,21 @@ item_stack.item_meta # 物品元数据
 
 ## 📝 更新日志
 
-### v0.4.3 (当前版本)
+### v0.4.6 (当前版本)
+
+- ✅ 成交记录写入弧光核心天眼（`ShopTrade`），需 arc_core ≥ 0.8.12 且 `ENABLE_SKY_EYE=True`
+- ✅ `/bs` 命令与 OP 快速设置官方店（`/bs qs start|stop`）等此前未推送改动一并发布
+
+### v0.4.5
+
+- 🏷️ **快速设置占位定价**：未在 `official_prices.yml` 配置的物品可照常建店，暂以 99999 作为出售价；补配置并 `pricereload` 后自动切换为正式官方定价
+
+### v0.4.4
+
+- 🔁 **主指令改为 `/bs`**：原 `/shop` 已替换为 `/bs`（ArcCore 主菜单入口同步调用 `/bs`）
+- ⚡ **快速设置自动定价商店**：OP 使用 `/bs qs start` 进入模式后，手持物品右键按钮即可创建官方出售+回收二合一商店；未配置官方定价的物品暂以 99999 作为出售价，`/bs qs stop` 结束
+
+### v0.4.3
 
 - 确认并整理近期修复说明（需同时安装弧光背包管理器 `arc_inventory` ≥ 0.1.3）
 
