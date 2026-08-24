@@ -1,7 +1,7 @@
 # 弧光按钮商店插件 (ARC Button Shop Plugin)
 
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/6567c5684e5b4c6eb83b27aea6e425c9)](https://app.codacy.com/gh/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![版本](https://img.shields.io/badge/版本-0.5.0-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
+[![版本](https://img.shields.io/badge/版本-1.0.0-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
 [![EndStone](https://img.shields.io/badge/EndStone-0.10+-green.svg)](https://github.com/EndstoneMC/endstone)
 [![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)](https://www.python.org/)
 
@@ -418,13 +418,20 @@ item_stack.item_meta # 物品元数据
 
 ## 📝 更新日志
 
-### v0.5.0 (当前版本)
+### v1.0.0 (当前版本)
+
+大版本：官方商店架构与木牌商店对齐，定价系统外迁至弧光市场经济插件。
 
 - ✅ **指令格式对齐木牌商店**：`/bs qs (start|stop)` 单条枚举重载；`/shopmanage` 补全子命令 usages
 - ✅ **商店类型精简为五种**：玩家出售/收购/交换 + 官方出售/官方回收（OP）
-- ✅ **官方店默认二合一 + 市场经济**：自动定价改走 `arc_market_economy` API；管理面板可单独关闭出售或回收
-- ✅ **手动定价**：官方出售/回收入口可选固定单价无限店（`sell_infinite` / `buy_infinite`）
+- ✅ **官方店默认二合一 + 市场经济**：自动定价走 `arc_market_economy` API；管理面板可单独关闭出售或回收
+- ✅ **手动定价**：官方出售/回收入口可选固定单价无限店
 - ✅ **快速设置**：`/bs qs start [both|sell|buy]`，缺失价目自动写入 0 元占位
+- ⚠️ **破坏性变更**：移除内嵌 `PriceManager` 与本地动态定价表，自动定价需安装 `arc_market_economy`
+
+### v0.5.0
+
+- （内容已并入 v1.0.0，此版本仅作过渡发布记录）
 
 ### v0.4.6
 
