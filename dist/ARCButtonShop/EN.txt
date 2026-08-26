@@ -158,3 +158,5 @@ QS_NO_HELD_ITEM=§cHold the item you want to list before interacting with a butt
 QS_NO_OFFICIAL_PRICE=§cItem §e{0} §chas no official price and cannot be used for quick setup
 QS_PLACEHOLDER_PRICE=§eItem §f{0} §ehas no official price yet; temporary sell price is §c99999§e. Recycle opens after you add a buy price in official_prices.yml and run /shopmanage pricereload
 QS_CONTINUE_HINT=§7Still in quick setup: hold an item and click another button, or type /bs qs stop to exit
+SHOP_DETAIL_CURRENT_PRICE=§eCurrent unit price: {0}
+SHOP_DETAIL_BASE_PRICE=§7Base price: {0}
