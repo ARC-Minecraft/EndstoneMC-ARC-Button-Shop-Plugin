@@ -1,7 +1,7 @@
 # 弧光按钮商店插件 (ARC Button Shop Plugin)
 
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/6567c5684e5b4c6eb83b27aea6e425c9)](https://app.codacy.com/gh/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![版本](https://img.shields.io/badge/版本-1.0.0-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
+[![版本](https://img.shields.io/badge/版本-1.0.1-blue.svg)](https://github.com/DEVILENMO/EndstoneMC-ARC-Button-Shop-Plugin)
 [![EndStone](https://img.shields.io/badge/EndStone-0.10+-green.svg)](https://github.com/EndstoneMC/endstone)
 [![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)](https://www.python.org/)
 
@@ -54,7 +54,7 @@
 
 ### 💰 经济与背包集成
 - **经济系统集成**: 支持 ARC Core 或 UMoney（任意其一，自动识别）
-- **弧光背包管理器**: **必须安装**独立插件 `arc_inventory`（已移除本包内嵌背包实现）
+- **弧光背包管理器**: **必须安装**独立插件 `arc_inventory` ≥ 0.1.4（优先公开 `api_*`）
 - **自动交易**: 安全的资金转账和物品交换
 - **防作弊**: 严格的交易验证和错误处理
 - **多货币支持**: 支持服务器自定义货币系统
@@ -70,7 +70,7 @@
 1. **下载插件**: 将插件文件放置到服务器的 `plugins` 目录
 2. **安装依赖**:
    - 经济：ARC Core 或 UMoney（任意其一；优先 `arc_core`）
-   - 背包：**必须安装** [弧光背包管理器](https://github.com/ARC-Minecraft/EndstoneMC-ARC-Inventory-Manager)（`arc_inventory`）
+   - 背包：**必须安装** [弧光背包管理器](https://github.com/ARC-Minecraft/EndstoneMC-ARC-Inventory-Manager)（`arc_inventory` ≥ 0.1.4）
 3. **重启服务器**: 重启服务器或使用插件管理器重新加载
 4. **自动初始化**: 插件将自动创建必要的数据库和配置文件
 5. **开始使用**: 玩家可以使用 `/bs` 命令开始创建商店
@@ -418,7 +418,12 @@ item_stack.item_meta # 物品元数据
 
 ## 📝 更新日志
 
-### v1.0.0 (当前版本)
+### v1.0.1 (当前版本)
+
+- 🔗 背包操作改为优先走 `arc_inventory` 公开 `api_*`（兼容 0.1.4+ `remove_item` 返回数量），底层 `InventoryManager` 仅作回退
+- 📦 建议同步升级弧光背包管理器至 ≥ 0.1.4
+
+### v1.0.0
 
 大版本：官方商店架构与木牌商店对齐，定价系统外迁至弧光市场经济插件。
 
