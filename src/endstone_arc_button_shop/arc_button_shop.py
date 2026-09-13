@@ -130,6 +130,7 @@ class ARCButtonShopPlugin(Plugin):
                 "按钮商店",
                 on_click=self._show_shop_main_panel,
                 priority=6,
+                icon="textures/arc_core/button_shop.png",
             )
         except Exception as e:
             self._safe_log("warning", f"[ARCButtonShop] Failed to register ARC main menu button: {e}")
