@@ -70,7 +70,7 @@
 1. **下载插件**: 将插件文件放置到服务器的 `plugins` 目录
 2. **安装依赖**:
    - 经济：ARC Core 或 UMoney（任意其一；优先 `arc_core`）
-   - 背包：**必须安装** [弧光背包管理器](https://github.com/ARC-Minecraft/EndstoneMC-ARC-Inventory-Manager)（`arc_inventory` ≥ 0.1.4）
+   - 背包：**必须安装** [弧光背包管理器](https://github.com/ARC-Game-Club/EndstoneMC-ARC-Inventory-Manager)（`arc_inventory` ≥ 0.1.4）
 3. **重启服务器**: 重启服务器或使用插件管理器重新加载
 4. **自动初始化**: 插件将自动创建必要的数据库和配置文件
 5. **开始使用**: 玩家可以使用 `/bs` 命令开始创建商店
